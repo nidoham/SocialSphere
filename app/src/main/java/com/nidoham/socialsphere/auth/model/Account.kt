@@ -43,7 +43,8 @@ data class Account(
                     name = user.displayName ?: "",
                     email = user.email ?: "",
                     phoneNumber = user.phoneNumber,
-                    createdAt = user.metadata?.creationTimestamp ?: 0
+                    createdAt = user.metadata?.creationTimestamp ?: 0,
+                    profilePictureUrl = user.photoUrl?.toString() ?: ""
                 ),
                 security = SecuritySettings(
                     passwordLastChanged = 0,

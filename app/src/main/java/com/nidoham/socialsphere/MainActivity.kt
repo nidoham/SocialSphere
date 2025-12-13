@@ -19,9 +19,15 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
+import com.nidoham.socialsphere.people.repository.PeopleSuggestionsRepositoryImpl
 import com.nidoham.socialsphere.ui.screens.*
-import com.nidoham.socialsphere.ui.components.*
 import com.nidoham.socialsphere.ui.theme.SocialSphereTheme
+import com.nidoham.socialsphere.ui.viewmodel.PeopleSuggestionsViewModel
+import com.nidoham.socialsphere.ui.viewmodel.PeopleSuggestionsViewModelFactory
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -38,8 +44,22 @@ class MainActivity : ComponentActivity() {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreen() {
-    var selectedTab by remember { mutableStateOf(0) }
+    var selectedTab by remember { mutableIntStateOf(0) }
     var showSearchDialog by remember { mutableStateOf(false) }
+
+    // Firebase & ViewModel Initialization
+    val auth = remember { FirebaseAuth.getInstance() }
+    val firestore = remember { FirebaseFirestore.getInstance() }
+
+    // বর্তমান ইউজার আইডি (Null Safety সহ)
+    val currentUid = auth.currentUser?.uid ?: ""
+
+    // Repository এবং ViewModel Factory সেটআপ
+    val repository = remember { PeopleSuggestionsRepositoryImpl(firestore) }
+    val factory = remember { PeopleSuggestionsViewModelFactory(repository) }
+
+    // ViewModel তৈরি করা
+    val friendsViewModel: PeopleSuggestionsViewModel = viewModel(factory = factory)
 
     Scaffold(
         topBar = {
@@ -64,14 +84,72 @@ fun MainScreen() {
             when (selectedTab) {
                 0 -> HomeScreen()
                 1 -> ChatsScreen()
-                2 -> FriendsScreen()
+                2 -> FriendsScreen(
+                    viewModel = friendsViewModel,
+                    currentUid = currentUid
+                )
                 3 -> ReelsScreen()
                 4 -> MarketsScreen()
             }
         }
 
+        // Search Dialog
         if (showSearchDialog) {
-            SearchDialog(onDismiss = { showSearchDialog = false })
+            SimpleSearchDialog(
+                onDismiss = { showSearchDialog = false }
+            )
+        }
+    }
+}
+
+@Composable
+fun SimpleSearchDialog(onDismiss: () -> Unit) {
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surface
+            )
+        ) {
+            Column(
+                modifier = Modifier.padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Search,
+                    contentDescription = "Search",
+                    modifier = Modifier.size(48.dp),
+                    tint = MaterialTheme.colorScheme.primary
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Text(
+                    text = "Search",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Text(
+                    text = "Search functionality coming soon!",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                Button(
+                    onClick = onDismiss,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Close")
+                }
+            }
         }
     }
 }

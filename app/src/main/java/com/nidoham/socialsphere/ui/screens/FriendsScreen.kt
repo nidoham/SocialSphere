@@ -2,18 +2,23 @@ package com.nidoham.socialsphere.ui.screens
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.nidoham.socialsphere.ui.components.FriendItem
 import com.nidoham.socialsphere.ui.components.FriendRequestItem
 import com.nidoham.socialsphere.ui.components.SuggestedFriendItem
+import com.nidoham.socialsphere.ui.viewmodel.PeopleSuggestionsViewModel
 
 @Composable
-fun FriendsScreen() {
-    var selectedTabIndex by remember { mutableStateOf(0) }
+fun FriendsScreen(
+    viewModel: PeopleSuggestionsViewModel,
+    currentUid: String
+) {
+    var selectedTabIndex by remember { mutableIntStateOf(0) }
     val tabs = listOf("Suggestions", "Requests", "Friends")
 
     Column(modifier = Modifier.fillMaxSize()) {
@@ -38,7 +43,7 @@ fun FriendsScreen() {
 
         // Content based on selected tab
         when (selectedTabIndex) {
-            0 -> PeopleYouMayKnowContent()
+            0 -> PeopleYouMayKnowContent(viewModel, currentUid)
             1 -> FriendRequestsContent()
             2 -> AllFriendsContent()
         }
@@ -46,18 +51,60 @@ fun FriendsScreen() {
 }
 
 @Composable
-private fun PeopleYouMayKnowContent() {
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(vertical = 8.dp)
-    ) {
-        items(15) { index ->
-            SuggestedFriendItem(
-                userName = "Suggested User ${index + 1}",
-                mutualInfo = "${(5..25).random()} mutual friends",
-                onAddFriend = { /* Handle add friend */ },
-                onRemove = { /* Handle remove suggestion */ }
-            )
+private fun PeopleYouMayKnowContent(
+    viewModel: PeopleSuggestionsViewModel,
+    currentUid: String
+) {
+    // ViewModel থেকে স্টেট অবজারভ করা
+    val suggestions by viewModel.suggestions.collectAsState()
+    val isLoading by viewModel.isLoading.collectAsState()
+
+    // স্ক্রিন লোড হলে বা প্রথমবার ডেটা ফেচ করার জন্য
+    LaunchedEffect(currentUid) {
+        if (suggestions.isEmpty() && currentUid.isNotEmpty()) {
+            viewModel.loadSuggestions(currentUid)
+        }
+    }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        if (isLoading) {
+            CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+        } else {
+            if (suggestions.isEmpty()) {
+                // যদি কোনো সাজেশন না থাকে
+                Text(
+                    text = "No suggestions available right now.",
+                    modifier = Modifier.align(Alignment.Center),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(vertical = 8.dp)
+                ) {
+                    // itemsIndexed ব্যবহার করে index কে key হিসেবে ব্যবহার করা হলো
+                    // এতে duplicate key এর সমস্যা হবে না
+                    itemsIndexed(
+                        items = suggestions,
+                        key = { index, _ -> "suggestion_$index" }
+                    ) { index, (uid, accountData) ->
+                        // Account ক্লাসের nested structure অনুযায়ী name অ্যাক্সেস করা
+                        val userName = accountData.account.name.ifEmpty { "Unknown User" }
+
+                        SuggestedFriendItem(
+                            userName = userName,
+                            mutualInfo = "New to SocialSphere",
+                            profilePictureUrl = accountData.account.profilePictureUrl,
+                            onAddFriend = {
+                                viewModel.sendFriendRequest(uid)
+                            },
+                            onRemove = {
+                                viewModel.removeSuggestion(uid)
+                            }
+                        )
+                    }
+                }
+            }
         }
     }
 }
@@ -70,10 +117,10 @@ private fun FriendRequestsContent() {
     ) {
         items(3) { index ->
             FriendRequestItem(
-                userName = "User ${index + 1}",
+                userName = "Requester User ${index + 1}",
                 mutualFriends = "${(2..10).random()} mutual friends",
-                onAccept = { /* Handle accept */ },
-                onDecline = { /* Handle decline */ }
+                onAccept = { /* Handle accept logic */ },
+                onDecline = { /* Handle decline logic */ }
             )
         }
     }
@@ -87,10 +134,10 @@ private fun AllFriendsContent() {
     ) {
         items(20) { index ->
             FriendItem(
-                userName = "Friend Name $index",
+                userName = "My Friend $index",
                 status = "Active ${(1..24).random()} hours ago",
-                onClick = { /* Handle friend click */ },
-                onMessageClick = { /* Handle message click */ }
+                onClick = { /* Navigate to profile */ },
+                onMessageClick = { /* Open chat */ }
             )
         }
     }

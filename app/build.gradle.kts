@@ -63,6 +63,7 @@ dependencies {
 
     // Lifecycle
     implementation(libs.androidx.lifecycle.runtime.ktx)
+    implementation(libs.androidx.lifecycle.viewmodel.compose)
 
     // Firebase with BOM
     implementation(platform(libs.firebase.bom))
@@ -78,6 +79,8 @@ dependencies {
     // Coroutines
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.kotlinx.coroutines.play.services)
+
+    implementation(libs.coil.compose)
 
     // Testing
     testImplementation(libs.junit)

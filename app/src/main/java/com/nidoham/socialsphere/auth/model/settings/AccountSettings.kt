@@ -9,7 +9,8 @@ data class AccountSettings(
     val name: String = "",
     val email: String = "",
     val phoneNumber: String? = null,
-    val createdAt: Long = 0
+    val createdAt: Long = 0,
+    val profilePictureUrl: String? = ""
 ) : Parcelable {
     // No-argument constructor for Firebase
     constructor() : this("", "", "", null, 0)
