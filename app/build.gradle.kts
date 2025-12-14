@@ -80,7 +80,14 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.kotlinx.coroutines.play.services)
 
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+
     implementation(libs.coil.compose)
+
+    /* NewPipe Extractor */
+    implementation(libs.newpipeextractor) {
+        exclude(group = "com.google.protobuf", module = "protobuf-javalite")
+    }
 
     // Testing
     testImplementation(libs.junit)

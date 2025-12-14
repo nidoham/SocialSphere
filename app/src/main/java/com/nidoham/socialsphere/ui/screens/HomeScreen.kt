@@ -6,8 +6,10 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.nidoham.socialsphere.ui.components.PostCard
 import com.nidoham.socialsphere.ui.components.StorySection
+import com.nidoham.socialsphere.ui.viewmodel.StoriesViewModel
 
 @Composable
 fun HomeScreen() {
@@ -17,7 +19,8 @@ fun HomeScreen() {
     ) {
         // Story Section
         item {
-            StorySection()
+            val storiesViewModel: StoriesViewModel = viewModel()
+            StorySection(viewModel = storiesViewModel)
         }
 
         // Posts
