@@ -62,22 +62,21 @@ fun StorySection(
             modifier = Modifier
                 .fillMaxWidth()
                 .horizontalScroll(rememberScrollState())
-                .padding(horizontal = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                .padding(start = 1.dp, end = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             // Add Story Button
             StoryItem(
-                userName = "Your Story",
                 isAddStory = true,
+                story = null,
                 onClick = { showDialog = true }
             )
 
             // Display user stories
             stories.forEach { story ->
                 StoryItem(
-                    userName = story.headline.take(10) + if (story.headline.length > 10) "..." else "",
                     isAddStory = false,
-                    imageUrl = story.imageUrl,
+                    story = story,
                     onClick = {
                         // TODO: Open story viewer
                     }

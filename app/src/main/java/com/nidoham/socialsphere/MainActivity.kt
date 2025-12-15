@@ -88,7 +88,7 @@ fun MainScreen() {
                     viewModel = friendsViewModel,
                     currentUid = currentUid
                 )
-                3 -> ReelsScreen()
+                3 -> StreamScreen()
                 4 -> MarketsScreen()
             }
         }
@@ -210,15 +210,6 @@ fun AppTopBar(
                     Text("3")
                 }
             }
-
-            IconButton(onClick = onProfileClick) {
-                Icon(
-                    imageVector = Icons.Default.AccountCircle,
-                    contentDescription = "Profile",
-                    tint = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.size(28.dp)
-                )
-            }
         },
         colors = TopAppBarDefaults.topAppBarColors(
             containerColor = MaterialTheme.colorScheme.surface,
@@ -236,7 +227,7 @@ fun AppBottomNavigationBar(
         NavigationItem("Home", Icons.Default.Home),
         NavigationItem("Chats", Icons.Default.Chat),
         NavigationItem("Friends", Icons.Default.People),
-        NavigationItem("Reels", Icons.Default.VideoLibrary),
+        NavigationItem("Streams ", Icons.Default.VideoLibrary),
         NavigationItem("Markets", Icons.Default.Store)
     )
 

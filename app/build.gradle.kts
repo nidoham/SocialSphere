@@ -80,7 +80,8 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.kotlinx.coroutines.play.services)
 
-    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+
+    implementation(libs.okhttp)
 
     implementation(libs.coil.compose)
 

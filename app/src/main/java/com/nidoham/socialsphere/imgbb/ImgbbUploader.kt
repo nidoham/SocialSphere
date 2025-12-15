@@ -17,8 +17,24 @@ class ImgbbUploader(
 
     suspend fun uploadImage(imageFile: File): ImgbbUploadResult =
         withContext(Dispatchers.IO) {
-
             try {
+                // Validate file exists and is readable
+                if (!imageFile.exists()) {
+                    return@withContext ImgbbUploadResult(
+                        success = false,
+                        imageUrl = null,
+                        errorMessage = "File does not exist: ${imageFile.absolutePath}"
+                    )
+                }
+
+                if (!imageFile.canRead()) {
+                    return@withContext ImgbbUploadResult(
+                        success = false,
+                        imageUrl = null,
+                        errorMessage = "Cannot read file: ${imageFile.absolutePath}"
+                    )
+                }
+
                 val requestBody = MultipartBody.Builder()
                     .setType(MultipartBody.FORM)
                     .addFormDataPart(
@@ -34,19 +50,52 @@ class ImgbbUploader(
                     .build()
 
                 client.newCall(request).execute().use { response ->
+                    val body = response.body?.string()
+
                     if (!response.isSuccessful) {
+                        val errorMsg = try {
+                            body?.let { JSONObject(it).optString("error", response.message) }
+                                ?: response.message
+                        } catch (e: Exception) {
+                            response.message
+                        }
+
                         return@withContext ImgbbUploadResult(
-                            false,
-                            null,
-                            "Upload failed: ${response.message}"
+                            success = false,
+                            imageUrl = null,
+                            errorMessage = "Upload failed (${response.code}): $errorMsg"
                         )
                     }
 
-                    val body = response.body?.string().orEmpty()
+                    if (body.isNullOrEmpty()) {
+                        return@withContext ImgbbUploadResult(
+                            success = false,
+                            imageUrl = null,
+                            errorMessage = "Empty response from server"
+                        )
+                    }
+
                     val json = JSONObject(body)
 
-                    val imageUrl =
-                        json.getJSONObject("data").getString("url")
+                    // Check if response contains expected data
+                    if (!json.has("data")) {
+                        return@withContext ImgbbUploadResult(
+                            success = false,
+                            imageUrl = null,
+                            errorMessage = "Invalid response format: missing 'data' field"
+                        )
+                    }
+
+                    val dataObject = json.getJSONObject("data")
+                    if (!dataObject.has("url")) {
+                        return@withContext ImgbbUploadResult(
+                            success = false,
+                            imageUrl = null,
+                            errorMessage = "Invalid response format: missing 'url' field"
+                        )
+                    }
+
+                    val imageUrl = dataObject.getString("url")
 
                     ImgbbUploadResult(
                         success = true,
@@ -59,7 +108,7 @@ class ImgbbUploader(
                 ImgbbUploadResult(
                     success = false,
                     imageUrl = null,
-                    errorMessage = e.localizedMessage
+                    errorMessage = "Exception: ${e.localizedMessage ?: e.message ?: "Unknown error"}"
                 )
             }
         }

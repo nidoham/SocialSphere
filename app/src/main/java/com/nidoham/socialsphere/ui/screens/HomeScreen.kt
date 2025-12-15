@@ -8,6 +8,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.nidoham.socialsphere.ui.components.PostCard
+import com.nidoham.socialsphere.ui.components.PostInputPanel
 import com.nidoham.socialsphere.ui.components.StorySection
 import com.nidoham.socialsphere.ui.viewmodel.StoriesViewModel
 
@@ -21,6 +22,15 @@ fun HomeScreen() {
         item {
             val storiesViewModel: StoriesViewModel = viewModel()
             StorySection(viewModel = storiesViewModel)
+        }
+
+        // Post Input Panel
+        item {
+            PostInputPanel(
+                onPostClick = {
+                    // Navigate to create post screen or show dialog
+                }
+            )
         }
 
         // Posts
