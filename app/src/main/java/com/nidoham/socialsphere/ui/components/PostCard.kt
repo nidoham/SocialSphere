@@ -22,22 +22,39 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.rememberAsyncImagePainter
+import com.nidoham.socialsphere.database.cloud.model.Post
+import com.nidoham.socialsphere.database.cloud.repository.UserRepository
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 @Composable
 fun PostCard(
-    userName: String,
+    post: Post,
     timeAgo: String,
-    content: String,
-    likeCount: String,
-    commentCount: String,
-    shareCount: String,
-    profilePicUrl: String? = null,
-    postImageUrl: String? = null,
     onLikeClick: () -> Unit,
     onCommentClick: () -> Unit,
     onShareClick: () -> Unit,
     onMoreClick: () -> Unit
 ) {
+    // State to hold the fetched author details
+    var authorName by remember { mutableStateOf("Loading...") }
+    var authorAvatarUrl by remember { mutableStateOf<String?>(null) }
+
+    // Fetch user details when the composable enters composition or authorId changes
+    LaunchedEffect(post.authorId) {
+        // Switch to IO dispatcher for network operations
+        withContext(Dispatchers.IO) {
+            val user = UserRepository.getInstance().getUserById(post.authorId)
+            if (user != null) {
+                // Use displayName if available, fallback to username
+                authorName = user.displayName?.takeIf { it.isNotBlank() } ?: user.username
+                authorAvatarUrl = user.avatarUrl
+            } else {
+                authorName = "Unknown User"
+            }
+        }
+    }
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -46,25 +63,28 @@ fun PostCard(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
-            // Post Header
+            // Post Header with fetched user data
             PostHeader(
-                userName = userName,
+                userName = authorName,
                 timeAgo = timeAgo,
-                profilePicUrl = profilePicUrl,
+                profilePicUrl = authorAvatarUrl,
                 onMoreClick = onMoreClick
             )
 
             Spacer(modifier = Modifier.height(8.dp))
 
             // Post Content with See More
-            PostContent(content = content)
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // Post Image with dynamic height
-            if (postImageUrl != null) {
-                PostImage(imageUrl = postImageUrl)
+            if (post.content.isNotBlank()) {
+                PostContent(content = post.content)
                 Spacer(modifier = Modifier.height(12.dp))
+            }
+
+            // Post Image (Check mediaUrls from Post model)
+            if (post.hasMedia()) {
+                post.mediaUrls.firstOrNull()?.let { imageUrl ->
+                    PostImage(imageUrl = imageUrl)
+                    Spacer(modifier = Modifier.height(12.dp))
+                }
             }
 
             // Post Actions
@@ -75,23 +95,34 @@ fun PostCard(
                 PostActionButton(
                     icon = Icons.Default.ThumbUp,
                     label = "Like",
-                    count = likeCount,
+                    count = formatCount(post.getReactionCount()),
                     onClick = onLikeClick
                 )
                 PostActionButton(
                     icon = Icons.Default.Comment,
                     label = "Comment",
-                    count = commentCount,
+                    count = formatCount(post.commentCount),
                     onClick = onCommentClick
                 )
                 PostActionButton(
                     icon = Icons.Default.Share,
                     label = "Share",
-                    count = shareCount,
+                    count = formatCount(post.shareCount),
                     onClick = onShareClick
                 )
             }
         }
+    }
+}
+
+/**
+ * Helper to format large numbers (e.g., 1200 -> 1.2k)
+ */
+private fun formatCount(count: Long): String {
+    return when {
+        count < 1000 -> count.toString()
+        count < 1000000 -> "${String.format("%.1f", count / 1000.0)}k"
+        else -> "${String.format("%.1f", count / 1000000.0)}M"
     }
 }
 
@@ -108,7 +139,7 @@ private fun PostHeader(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            // Profile picture with blue border
+            // Profile picture
             Box(
                 modifier = Modifier
                     .size(40.dp)
@@ -164,38 +195,28 @@ private fun PostHeader(
 @Composable
 private fun PostContent(content: String) {
     var isExpanded by remember { mutableStateOf(false) }
-    val maxLines = if (isExpanded) Int.MAX_VALUE else 2
+    // If expanded show all lines, otherwise limit to 3
+    val maxLines = if (isExpanded) Int.MAX_VALUE else 3
 
     Column {
         Text(
             text = content,
             fontSize = 14.sp,
             maxLines = maxLines,
-            overflow = TextOverflow.Ellipsis
+            overflow = TextOverflow.Ellipsis,
+            color = MaterialTheme.colorScheme.onSurface
         )
 
-        // Show "See More" if content is long
-        if (content.length > 100 && !isExpanded) {
+        // Simple logic: if content is strictly longer than char limit, show toggle
+        if (content.length > 150) {
             Text(
-                text = "See More",
+                text = if (isExpanded) "See Less" else "See More",
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Medium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = MaterialTheme.colorScheme.secondary,
                 modifier = Modifier
                     .padding(top = 4.dp)
-                    .clickable { isExpanded = true }
-            )
-        }
-
-        if (isExpanded) {
-            Text(
-                text = "See Less",
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Medium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier
-                    .padding(top = 4.dp)
-                    .clickable { isExpanded = false }
+                    .clickable { isExpanded = !isExpanded }
             )
         }
     }
@@ -203,31 +224,21 @@ private fun PostContent(content: String) {
 
 @Composable
 private fun PostImage(imageUrl: String) {
-    var imageHeight by remember { mutableStateOf(300.dp) }
-
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(imageHeight)
+            .heightIn(min = 200.dp, max = 500.dp)
             .clip(RoundedCornerShape(8.dp))
             .background(MaterialTheme.colorScheme.surfaceVariant)
     ) {
         Image(
             painter = rememberAsyncImagePainter(
                 model = imageUrl,
-                onSuccess = { state ->
-                    val intrinsicSize = state.painter.intrinsicSize
-                    val aspectRatio = intrinsicSize.width / intrinsicSize.height
-
-                    // Calculate height based on width (screen width - padding)
-                    // Limit between 200dp and 500dp for reasonable display
-                    val calculatedHeight = (intrinsicSize.height / intrinsicSize.width) * 400
-                    imageHeight = calculatedHeight.dp.coerceIn(200.dp, 500.dp)
-                }
+                contentScale = ContentScale.Crop
             ),
             contentDescription = "Post Image",
-            modifier = Modifier.fillMaxSize(),
-            contentScale = ContentScale.Crop
+            modifier = Modifier.fillMaxWidth(),
+            contentScale = ContentScale.FillWidth
         )
     }
 }
