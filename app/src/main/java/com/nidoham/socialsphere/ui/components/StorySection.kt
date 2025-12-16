@@ -1,5 +1,6 @@
 package com.nidoham.socialsphere.ui.components
 
+import android.util.Log
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -20,12 +21,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.rememberAsyncImagePainter
 import com.google.firebase.auth.FirebaseAuth
-import com.nidoham.socialsphere.database.cloud.model.Reaction
 import com.nidoham.socialsphere.database.cloud.model.Story
 import com.nidoham.socialsphere.database.cloud.model.User
 import com.nidoham.socialsphere.database.cloud.repository.UserRepository
 import com.nidoham.socialsphere.ui.viewmodel.StoryViewModel
-import kotlinx.coroutines.launch
+
+private const val TAG = "StorySection"
 
 /* --------------------------------------------------
    STORY SECTION
@@ -44,8 +45,6 @@ fun StorySection(
     val uploadError by viewModel.uploadError.collectAsState()
     val isLoadingStories by viewModel.isLoadingStories.collectAsState()
 
-    val scope = rememberCoroutineScope()
-
     LaunchedEffect(uploadSuccess) {
         if (uploadSuccess) {
             snackbarHostState.showSnackbar("Story published successfully!")
@@ -59,6 +58,11 @@ fun StorySection(
             snackbarHostState.showSnackbar(it)
             viewModel.clearUploadError()
         }
+    }
+
+    // Log stories count
+    LaunchedEffect(stories.size) {
+        Log.d(TAG, "Displaying ${stories.size} stories")
     }
 
     Column(modifier = Modifier.padding(vertical = 8.dp)) {
@@ -98,33 +102,15 @@ fun StorySection(
                 onClick = { showAddDialog = true }
             )
 
-            // Regular Story Items
+            // Regular Story Items - Clean version without reactions
             stories.forEach { story ->
-                var reaction by remember { mutableStateOf(Reaction()) }
-                var isUserLiked by remember { mutableStateOf(false) }
-                var isReactionLoading by remember { mutableStateOf(false) }
+                Log.d(TAG, "Rendering story: ${story.id}, userId: ${story.userId}")
 
-                LaunchedEffect(story.id) {
-                    reaction = viewModel.getReactionCounts(story.id)
-                    isUserLiked = viewModel.hasUserLiked(story.id)
-                }
-
-                StoryItemWithReactions(
+                CleanStoryItem(
                     story = story,
-                    reaction = reaction,
-                    isUserLiked = isUserLiked,
-                    isReactionLoading = isReactionLoading,
                     onClick = {
                         viewModel.incrementViews(story.id)
-                    },
-                    onLikeClick = {
-                        isReactionLoading = true
-                        scope.launch {
-                            viewModel.toggleReaction(story.id, true)
-                            reaction = viewModel.getReactionCounts(story.id)
-                            isUserLiked = viewModel.hasUserLiked(story.id)
-                            isReactionLoading = false
-                        }
+                        Log.d(TAG, "Story clicked: ${story.id}")
                     }
                 )
             }
@@ -145,17 +131,13 @@ fun StorySection(
 }
 
 /* --------------------------------------------------
-   STORY ITEM WITH REACTIONS (for regular stories)
+   CLEAN STORY ITEM (No reactions, just image + avatar + username)
 -------------------------------------------------- */
 
 @Composable
-fun StoryItemWithReactions(
+fun CleanStoryItem(
     story: Story,
-    reaction: Reaction = Reaction(),
-    isUserLiked: Boolean = false,
-    isReactionLoading: Boolean = false,
-    onClick: () -> Unit = {},
-    onLikeClick: () -> Unit = {}
+    onClick: () -> Unit = {}
 ) {
     var storyUser by remember { mutableStateOf<User?>(null) }
     var isLoadingUser by remember { mutableStateOf(false) }
@@ -163,7 +145,11 @@ fun StoryItemWithReactions(
     LaunchedEffect(story.userId) {
         isLoadingUser = true
         try {
+            Log.d(TAG, "Fetching user for story: ${story.userId}")
             storyUser = UserRepository.getInstance().getUserById(story.userId)
+            Log.d(TAG, "User fetched: ${storyUser?.displayName}, avatar: ${storyUser?.avatarUrl}")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error fetching user: ${e.message}", e)
         } finally {
             isLoadingUser = false
         }
@@ -180,7 +166,12 @@ fun StoryItemWithReactions(
         // Story image background
         story.imageUrl?.let { url ->
             Image(
-                painter = rememberAsyncImagePainter(url),
+                painter = rememberAsyncImagePainter(
+                    model = url,
+                    onError = {
+                        Log.e(TAG, "Failed to load story image: $url")
+                    }
+                ),
                 contentDescription = "Story image",
                 modifier = Modifier.fillMaxSize(),
                 contentScale = ContentScale.Crop
@@ -202,13 +193,14 @@ fun StoryItemWithReactions(
             )
         }
 
-        // Profile picture with border
+        // Profile picture with border - FIXED
         Box(
             modifier = Modifier
                 .align(Alignment.TopStart)
                 .padding(8.dp)
-                .size(40.dp)
+                .size(42.dp)
                 .border(3.dp, Color(0xFF1877F2), CircleShape)
+                .padding(2.dp)
                 .clip(CircleShape)
                 .background(Color.White),
             contentAlignment = Alignment.Center
@@ -216,25 +208,32 @@ fun StoryItemWithReactions(
             when {
                 isLoadingUser -> {
                     CircularProgressIndicator(
-                        modifier = Modifier.size(16.dp),
+                        modifier = Modifier.size(18.dp),
                         strokeWidth = 2.dp,
                         color = Color(0xFF1877F2)
                     )
                 }
-                storyUser?.avatarUrl != null -> {
+                !storyUser?.avatarUrl.isNullOrBlank() -> {
+                    Log.d(TAG, "Displaying avatar: ${storyUser?.avatarUrl}")
                     Image(
-                        painter = rememberAsyncImagePainter(storyUser!!.avatarUrl),
+                        painter = rememberAsyncImagePainter(
+                            model = storyUser?.avatarUrl,
+                            onError = {
+                                Log.e(TAG, "Failed to load avatar: ${storyUser?.avatarUrl}")
+                            }
+                        ),
                         contentDescription = "User avatar",
                         modifier = Modifier.fillMaxSize(),
                         contentScale = ContentScale.Crop
                     )
                 }
                 else -> {
+                    Log.d(TAG, "Using default icon for user")
                     Icon(
                         imageVector = Icons.Default.Person,
                         contentDescription = "Default avatar",
-                        tint = Color.Gray,
-                        modifier = Modifier.size(20.dp)
+                        tint = Color(0xFF1877F2),
+                        modifier = Modifier.size(22.dp)
                     )
                 }
             }
@@ -242,86 +241,18 @@ fun StoryItemWithReactions(
 
         // Username at bottom
         Text(
-            text = storyUser?.displayName ?: storyUser?.username ?: "User",
+            text = storyUser?.displayName
+                ?: storyUser?.username
+                ?: "Loading...",
             modifier = Modifier
                 .align(Alignment.BottomStart)
-                .padding(8.dp),
+                .padding(12.dp, 8.dp),
             fontSize = 12.sp,
             fontWeight = FontWeight.SemiBold,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
-            color = Color.White
+            color = Color.White,
+            lineHeight = 14.sp
         )
-
-        // Reactions (likes and views)
-        Column(
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(8.dp),
-            horizontalAlignment = Alignment.End
-        ) {
-            // Like button
-            Row(
-                modifier = Modifier
-                    .clip(CircleShape)
-                    .background(Color.Black.copy(alpha = 0.6f))
-                    .clickable(enabled = !isReactionLoading) { onLikeClick() }
-                    .padding(horizontal = 6.dp, vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    imageVector = if (isUserLiked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                    contentDescription = if (isUserLiked) "Unlike" else "Like",
-                    tint = if (isUserLiked) Color.Red else Color.White,
-                    modifier = Modifier.size(14.dp)
-                )
-                Spacer(Modifier.width(4.dp))
-                Text(
-                    text = "${reaction.likes}",
-                    fontSize = 11.sp,
-                    color = Color.White
-                )
-            }
-
-            Spacer(Modifier.height(4.dp))
-
-            // View count
-            Row(
-                modifier = Modifier
-                    .clip(CircleShape)
-                    .background(Color.Black.copy(alpha = 0.4f))
-                    .padding(horizontal = 6.dp, vertical = 2.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    imageVector = Icons.Default.RemoveRedEye,
-                    contentDescription = "Views",
-                    tint = Color.Gray,
-                    modifier = Modifier.size(12.dp)
-                )
-                Spacer(Modifier.width(2.dp))
-                Text(
-                    text = "${story.viewCount}",
-                    fontSize = 10.sp,
-                    color = Color.Gray
-                )
-            }
-        }
-
-        // Loading overlay
-        if (isReactionLoading) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.3f)),
-                contentAlignment = Alignment.Center
-            ) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(20.dp),
-                    color = Color.White,
-                    strokeWidth = 2.dp
-                )
-            }
-        }
     }
 }

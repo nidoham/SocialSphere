@@ -47,21 +47,30 @@ class StoryRepository private constructor(
             val now = System.currentTimeMillis()
             val expiresAt = Story.getExpiryTimestamp(now)
 
+            Log.d(TAG, "Creating story - Current time: $now, Expires at: $expiresAt")
+
             val storyToCreate = story.copy(
-                id = "", // Will be set by Firestore
+                id = "", // Will be set after creation
                 createdAt = now,
                 expiresAt = expiresAt,
                 reactions = Reaction(), // Empty reactions
                 viewCount = 0L,
                 replyCount = 0L,
-                shareCount = 0L
+                shareCount = 0L,
+                isBanned = false
             )
 
+            // Add story to Firestore
             val docRef = storiesCollection.add(storyToCreate).await()
-            Log.d(TAG, "Story created successfully: ${docRef.id}")
-            Result.success(docRef.id)
+            val storyId = docRef.id
+
+            // Update the story with its ID
+            storiesCollection.document(storyId).update("id", storyId).await()
+
+            Log.d(TAG, "✅ Story created successfully with ID: $storyId")
+            Result.success(storyId)
         } catch (e: Exception) {
-            Log.e(TAG, "Error creating story", e)
+            Log.e(TAG, "❌ Error creating story: ${e.message}", e)
             Result.failure(Exception("Failed to create story: ${e.message}", e))
         }
     }
@@ -78,22 +87,53 @@ class StoryRepository private constructor(
             val now = System.currentTimeMillis()
             val twentyFourHoursAgo = now - (Story.DEFAULT_EXPIRY_HOURS * 60 * 60 * 1000)
 
+            Log.d(TAG, "Fetching stories - Current time: $now")
+            Log.d(TAG, "Fetching stories created after: $twentyFourHoursAgo")
+            Log.d(TAG, "24 hours in ms: ${Story.DEFAULT_EXPIRY_HOURS * 60 * 60 * 1000}")
+
+            // Simple query without filters first (for debugging)
             val snapshot = storiesCollection
-                .whereGreaterThan("createdAt", twentyFourHoursAgo)
-                .whereEqualTo("isBanned", false)
                 .orderBy("createdAt", Query.Direction.DESCENDING)
                 .limit(limit.toLong())
                 .get()
                 .await()
 
+            Log.d(TAG, "Query returned ${snapshot.documents.size} total documents")
+
             val stories = snapshot.documents.mapNotNull { doc ->
-                doc.toObject(Story::class.java)?.copy(id = doc.id)
+                try {
+                    val story = doc.toObject(Story::class.java)?.copy(id = doc.id)
+
+                    if (story != null) {
+                        Log.d(TAG, "Story found - ID: ${story.id}, Created: ${story.createdAt}, Expires: ${story.expiresAt}, Banned: ${story.isBanned}")
+
+                        // Filter active stories manually
+                        if (!story.isBanned && story.createdAt > twentyFourHoursAgo) {
+                            story
+                        } else {
+                            Log.d(TAG, "Story filtered out - ID: ${story.id}, Active: ${story.isActive()}")
+                            null
+                        }
+                    } else {
+                        Log.w(TAG, "Failed to convert document ${doc.id} to Story object")
+                        null
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error parsing story document ${doc.id}: ${e.message}", e)
+                    null
+                }
             }
 
-            Log.d(TAG, "Fetched ${stories.size} recent stories")
+            Log.d(TAG, "✅ Fetched ${stories.size} active stories out of ${snapshot.documents.size} total")
+
+            // Log first 3 stories for debugging
+            stories.take(3).forEach { story ->
+                Log.d(TAG, "Story: id=${story.id}, userId=${story.userId}, caption=${story.caption}, imageUrl=${story.imageUrl}")
+            }
+
             Result.success(stories)
         } catch (e: Exception) {
-            Log.e(TAG, "Error fetching recent stories", e)
+            Log.e(TAG, "❌ Error fetching recent stories: ${e.message}", e)
             Result.failure(Exception("Failed to fetch stories: ${e.message}", e))
         }
     }
@@ -106,6 +146,8 @@ class StoryRepository private constructor(
      */
     suspend fun getUserStories(userId: String, limit: Int = 20): Result<List<Story>> {
         return try {
+            Log.d(TAG, "Fetching stories for user: $userId")
+
             val snapshot = storiesCollection
                 .whereEqualTo("userId", userId)
                 .orderBy("createdAt", Query.Direction.DESCENDING)
@@ -113,14 +155,21 @@ class StoryRepository private constructor(
                 .get()
                 .await()
 
+            Log.d(TAG, "Query returned ${snapshot.documents.size} documents for user")
+
             val stories = snapshot.documents.mapNotNull { doc ->
-                doc.toObject(Story::class.java)?.copy(id = doc.id)
+                try {
+                    doc.toObject(Story::class.java)?.copy(id = doc.id)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error parsing user story document ${doc.id}: ${e.message}", e)
+                    null
+                }
             }
 
-            Log.d(TAG, "Fetched ${stories.size} stories for user: $userId")
+            Log.d(TAG, "✅ Fetched ${stories.size} stories for user: $userId")
             Result.success(stories)
         } catch (e: Exception) {
-            Log.e(TAG, "Error fetching user stories", e)
+            Log.e(TAG, "❌ Error fetching user stories: ${e.message}", e)
             Result.failure(Exception("Failed to fetch user stories: ${e.message}", e))
         }
     }
@@ -132,11 +181,26 @@ class StoryRepository private constructor(
      */
     suspend fun getStoryById(storyId: String): Result<Story?> {
         return try {
+            Log.d(TAG, "Fetching story by ID: $storyId")
+
             val snapshot = storiesCollection.document(storyId).get().await()
+
+            if (!snapshot.exists()) {
+                Log.w(TAG, "Story not found: $storyId")
+                return Result.success(null)
+            }
+
             val story = snapshot.toObject(Story::class.java)?.copy(id = snapshot.id)
+
+            if (story != null) {
+                Log.d(TAG, "✅ Story found: $storyId")
+            } else {
+                Log.w(TAG, "Failed to convert story document: $storyId")
+            }
+
             Result.success(story)
         } catch (e: Exception) {
-            Log.e(TAG, "Error fetching story by ID", e)
+            Log.e(TAG, "❌ Error fetching story by ID: ${e.message}", e)
             Result.failure(Exception("Failed to fetch story: ${e.message}", e))
         }
     }
@@ -153,9 +217,10 @@ class StoryRepository private constructor(
             storiesCollection.document(storyId)
                 .update("viewCount", FieldValue.increment(1))
                 .await()
+            Log.d(TAG, "✅ View count incremented for story: $storyId")
             Result.success(Unit)
         } catch (e: Exception) {
-            Log.e(TAG, "Error incrementing view count", e)
+            Log.e(TAG, "❌ Error incrementing view count: ${e.message}", e)
             Result.failure(Exception("Failed to increment views: ${e.message}", e))
         }
     }
@@ -170,9 +235,10 @@ class StoryRepository private constructor(
             storiesCollection.document(storyId)
                 .update("replyCount", FieldValue.increment(1))
                 .await()
+            Log.d(TAG, "✅ Reply count incremented for story: $storyId")
             Result.success(Unit)
         } catch (e: Exception) {
-            Log.e(TAG, "Error incrementing reply count", e)
+            Log.e(TAG, "❌ Error incrementing reply count: ${e.message}", e)
             Result.failure(Exception("Failed to increment replies: ${e.message}", e))
         }
     }
@@ -187,9 +253,10 @@ class StoryRepository private constructor(
             storiesCollection.document(storyId)
                 .update("shareCount", FieldValue.increment(1))
                 .await()
+            Log.d(TAG, "✅ Share count incremented for story: $storyId")
             Result.success(Unit)
         } catch (e: Exception) {
-            Log.e(TAG, "Error incrementing share count", e)
+            Log.e(TAG, "❌ Error incrementing share count: ${e.message}", e)
             Result.failure(Exception("Failed to increment shares: ${e.message}", e))
         }
     }
@@ -200,7 +267,10 @@ class StoryRepository private constructor(
      * @return Result indicating success or failure
      */
     suspend fun batchIncrementViews(storyIds: List<String>): Result<Unit> {
-        if (storyIds.isEmpty()) return Result.success(Unit)
+        if (storyIds.isEmpty()) {
+            Log.d(TAG, "No story IDs provided for batch increment")
+            return Result.success(Unit)
+        }
 
         return try {
             val batch = firestore.batch()
@@ -209,10 +279,10 @@ class StoryRepository private constructor(
                 batch.update(storyRef, "viewCount", FieldValue.increment(1))
             }
             batch.commit().await()
-            Log.d(TAG, "Batch updated ${storyIds.size} story views")
+            Log.d(TAG, "✅ Batch updated ${storyIds.size} story views")
             Result.success(Unit)
         } catch (e: Exception) {
-            Log.e(TAG, "Error batch incrementing views", e)
+            Log.e(TAG, "❌ Error batch incrementing views: ${e.message}", e)
             Result.failure(Exception("Failed to batch update views: ${e.message}", e))
         }
     }
@@ -228,6 +298,8 @@ class StoryRepository private constructor(
      */
     suspend fun toggleReaction(storyId: String, userId: String, isLike: Boolean = true): Result<Unit> {
         return try {
+            Log.d(TAG, "Toggling reaction - Story: $storyId, User: $userId, IsLike: $isLike")
+
             firestore.runTransaction { transaction ->
                 val storyRef = storiesCollection.document(storyId)
                 val reactionsRef = storyRef.collection(COLLECTION_REACTIONS).document(DOCUMENT_COUNTS)
@@ -235,35 +307,35 @@ class StoryRepository private constructor(
 
                 val storySnapshot = transaction.get(storyRef)
                 if (!storySnapshot.exists()) {
-                    throw IllegalArgumentException("Story not found")
+                    throw IllegalArgumentException("Story not found: $storyId")
                 }
 
                 val userReactionSnapshot = transaction.get(userReactionRef)
                 val reactionField = if (isLike) "likes" else "dislikes"
                 val currentUserReaction = userReactionSnapshot.getBoolean(reactionField) ?: false
 
+                Log.d(TAG, "Current reaction status: $currentUserReaction")
+
                 if (currentUserReaction) {
                     // Remove reaction
+                    Log.d(TAG, "Removing reaction")
                     transaction.update(userReactionRef, reactionField, false)
-                    transaction.update(reactionsRef, reactionField, FieldValue.increment(-1))
-
-                    // Update story document
+                    transaction.set(reactionsRef, mapOf(reactionField to FieldValue.increment(-1)), SetOptions.merge())
                     transaction.update(storyRef, "reactions.$reactionField", FieldValue.increment(-1))
                 } else {
                     // Add reaction
+                    Log.d(TAG, "Adding reaction")
                     val userReactionData = mapOf(reactionField to true)
                     transaction.set(userReactionRef, userReactionData, SetOptions.merge())
-                    transaction.update(reactionsRef, reactionField, FieldValue.increment(1))
-
-                    // Update story document
+                    transaction.set(reactionsRef, mapOf(reactionField to FieldValue.increment(1)), SetOptions.merge())
                     transaction.update(storyRef, "reactions.$reactionField", FieldValue.increment(1))
                 }
             }.await()
 
-            Log.d(TAG, "Reaction toggled for story: $storyId")
+            Log.d(TAG, "✅ Reaction toggled successfully for story: $storyId")
             Result.success(Unit)
         } catch (e: Exception) {
-            Log.e(TAG, "Error toggling reaction", e)
+            Log.e(TAG, "❌ Error toggling reaction: ${e.message}", e)
             Result.failure(Exception("Failed to toggle reaction: ${e.message}", e))
         }
     }
@@ -284,9 +356,10 @@ class StoryRepository private constructor(
             val likes = snapshot.getLong("likes") ?: 0L
             val dislikes = snapshot.getLong("dislikes") ?: 0L
 
+            Log.d(TAG, "Reaction counts for $storyId - Likes: $likes, Dislikes: $dislikes")
             Result.success(Reaction(likes, dislikes))
         } catch (e: Exception) {
-            Log.e(TAG, "Error getting reaction counts", e)
+            Log.e(TAG, "Error getting reaction counts: ${e.message}", e)
             Result.success(Reaction()) // Return empty reaction on error
         }
     }
@@ -310,9 +383,10 @@ class StoryRepository private constructor(
                 "dislikes" to (snapshot.getBoolean("dislikes") ?: false)
             )
 
+            Log.d(TAG, "User reaction for $storyId - $reactions")
             Result.success(reactions)
         } catch (e: Exception) {
-            Log.e(TAG, "Error getting user reaction", e)
+            Log.e(TAG, "Error getting user reaction: ${e.message}", e)
             Result.success(mapOf("likes" to false, "dislikes" to false))
         }
     }
@@ -331,9 +405,12 @@ class StoryRepository private constructor(
                 .document(userId)
 
             val snapshot = userReactionRef.get().await()
-            snapshot.getBoolean("likes") ?: false
+            val hasLiked = snapshot.getBoolean("likes") ?: false
+
+            Log.d(TAG, "User $userId liked status for story $storyId: $hasLiked")
+            hasLiked
         } catch (e: Exception) {
-            Log.e(TAG, "Error checking user like status", e)
+            Log.e(TAG, "Error checking user like status: ${e.message}", e)
             false
         }
     }
@@ -347,12 +424,16 @@ class StoryRepository private constructor(
      */
     suspend fun deleteStory(storyId: String): Result<Unit> {
         return try {
-            // Delete reactions subcollection first (optional, can use Cloud Function)
+            Log.d(TAG, "Deleting story: $storyId")
+
+            // Delete reactions subcollection first
             val reactionsSnapshot = storiesCollection
                 .document(storyId)
                 .collection(COLLECTION_REACTIONS)
                 .get()
                 .await()
+
+            Log.d(TAG, "Found ${reactionsSnapshot.documents.size} reaction documents to delete")
 
             val batch = firestore.batch()
             reactionsSnapshot.documents.forEach { doc ->
@@ -363,10 +444,10 @@ class StoryRepository private constructor(
             // Delete the story document
             storiesCollection.document(storyId).delete().await()
 
-            Log.d(TAG, "Story deleted: $storyId")
+            Log.d(TAG, "✅ Story deleted successfully: $storyId")
             Result.success(Unit)
         } catch (e: Exception) {
-            Log.e(TAG, "Error deleting story", e)
+            Log.e(TAG, "❌ Error deleting story: ${e.message}", e)
             Result.failure(Exception("Failed to delete story: ${e.message}", e))
         }
     }
@@ -381,10 +462,10 @@ class StoryRepository private constructor(
             storiesCollection.document(storyId)
                 .update("isBanned", true)
                 .await()
-            Log.d(TAG, "Story banned: $storyId")
+            Log.d(TAG, "✅ Story banned: $storyId")
             Result.success(Unit)
         } catch (e: Exception) {
-            Log.e(TAG, "Error banning story", e)
+            Log.e(TAG, "❌ Error banning story: ${e.message}", e)
             Result.failure(Exception("Failed to ban story: ${e.message}", e))
         }
     }
@@ -399,10 +480,15 @@ class StoryRepository private constructor(
     suspend fun deleteExpiredStories(): Result<Int> {
         return try {
             val now = System.currentTimeMillis()
+
+            Log.d(TAG, "Deleting expired stories older than: $now")
+
             val snapshot = storiesCollection
                 .whereLessThan("expiresAt", now)
                 .get()
                 .await()
+
+            Log.d(TAG, "Found ${snapshot.documents.size} expired stories")
 
             val batch = firestore.batch()
             snapshot.documents.forEach { doc ->
@@ -411,10 +497,10 @@ class StoryRepository private constructor(
             batch.commit().await()
 
             val count = snapshot.documents.size
-            Log.d(TAG, "Deleted $count expired stories")
+            Log.d(TAG, "✅ Deleted $count expired stories")
             Result.success(count)
         } catch (e: Exception) {
-            Log.e(TAG, "Error deleting expired stories", e)
+            Log.e(TAG, "❌ Error deleting expired stories: ${e.message}", e)
             Result.failure(Exception("Failed to delete expired stories: ${e.message}", e))
         }
     }
