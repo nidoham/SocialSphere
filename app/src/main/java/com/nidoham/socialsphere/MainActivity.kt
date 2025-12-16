@@ -23,11 +23,8 @@ import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
-import com.nidoham.socialsphere.people.repository.PeopleSuggestionsRepositoryImpl
 import com.nidoham.socialsphere.ui.screens.*
 import com.nidoham.socialsphere.ui.theme.SocialSphereTheme
-import com.nidoham.socialsphere.ui.viewmodel.PeopleSuggestionsViewModel
-import com.nidoham.socialsphere.ui.viewmodel.PeopleSuggestionsViewModelFactory
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -55,11 +52,11 @@ fun MainScreen() {
     val currentUid = auth.currentUser?.uid ?: ""
 
     // Repository এবং ViewModel Factory সেটআপ
-    val repository = remember { PeopleSuggestionsRepositoryImpl(firestore) }
-    val factory = remember { PeopleSuggestionsViewModelFactory(repository) }
+    //val repository = remember { PeopleSuggestionsRepositoryImpl(firestore) }
+   // val factory = remember { PeopleSuggestionsViewModelFactory(repository) }
 
     // ViewModel তৈরি করা
-    val friendsViewModel: PeopleSuggestionsViewModel = viewModel(factory = factory)
+   // val friendsViewModel: PeopleSuggestionsViewModel = viewModel(factory = factory)
 
     Scaffold(
         topBar = {
@@ -84,10 +81,10 @@ fun MainScreen() {
             when (selectedTab) {
                 0 -> HomeScreen()
                 1 -> ChatsScreen()
-                2 -> FriendsScreen(
-                    viewModel = friendsViewModel,
+                /*2 -> FriendsScreen(
+                    viewModel = null,
                     currentUid = currentUid
-                )
+                )*/
                 3 -> StreamScreen()
                 4 -> MarketsScreen()
             }

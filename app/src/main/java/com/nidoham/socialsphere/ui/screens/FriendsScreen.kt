@@ -11,11 +11,10 @@ import androidx.compose.ui.unit.dp
 import com.nidoham.socialsphere.ui.components.FriendItem
 import com.nidoham.socialsphere.ui.components.FriendRequestItem
 import com.nidoham.socialsphere.ui.components.SuggestedFriendItem
-import com.nidoham.socialsphere.ui.viewmodel.PeopleSuggestionsViewModel
 
 @Composable
 fun FriendsScreen(
-    viewModel: PeopleSuggestionsViewModel,
+    //viewModel: PeopleSuggestionsViewModel,
     currentUid: String
 ) {
     var selectedTabIndex by remember { mutableIntStateOf(0) }
@@ -43,7 +42,7 @@ fun FriendsScreen(
 
         // Content based on selected tab
         when (selectedTabIndex) {
-            0 -> PeopleYouMayKnowContent(viewModel, currentUid)
+           // 0 -> PeopleYouMayKnowContent(viewModel, currentUid)
             1 -> FriendRequestsContent()
             2 -> AllFriendsContent()
         }
@@ -52,61 +51,61 @@ fun FriendsScreen(
 
 @Composable
 private fun PeopleYouMayKnowContent(
-    viewModel: PeopleSuggestionsViewModel,
+    //viewModel: PeopleSuggestionsViewModel,
     currentUid: String
 ) {
     // ViewModel থেকে স্টেট অবজারভ করা
-    val suggestions by viewModel.suggestions.collectAsState()
-    val isLoading by viewModel.isLoading.collectAsState()
+    //val suggestions by viewModel.suggestions.collectAsState()
+    //val isLoading by viewModel.isLoading.collectAsState()
 
     // স্ক্রিন লোড হলে বা প্রথমবার ডেটা ফেচ করার জন্য
     LaunchedEffect(currentUid) {
-        if (suggestions.isEmpty() && currentUid.isNotEmpty()) {
-            viewModel.loadSuggestions(currentUid)
-        }
+        //if (suggestions.isEmpty() && currentUid.isNotEmpty()) {
+         //   viewModel.loadSuggestions(currentUid)
+        //}
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        if (isLoading) {
+       // if (isLoading) {
             CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
-        } else {
-            if (suggestions.isEmpty()) {
+      //  } else {
+            //if (suggestions.isEmpty()) {
                 // যদি কোনো সাজেশন না থাকে
                 Text(
                     text = "No suggestions available right now.",
                     modifier = Modifier.align(Alignment.Center),
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-            } else {
+         //   } else {
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(vertical = 8.dp)
                 ) {
                     // itemsIndexed ব্যবহার করে index কে key হিসেবে ব্যবহার করা হলো
                     // এতে duplicate key এর সমস্যা হবে না
-                    itemsIndexed(
+                   /* itemsIndexed(
                         items = suggestions,
                         key = { index, _ -> "suggestion_$index" }
                     ) { index, (uid, accountData) ->
                         // Account ক্লাসের nested structure অনুযায়ী name অ্যাক্সেস করা
-                        val userName = accountData.account.name.ifEmpty { "Unknown User" }
+                        //val userName = accountData.account.name.ifEmpty { "Unknown User" }
 
-                        SuggestedFriendItem(
-                            userName = userName,
+                       /* SuggestedFriendItem(
+                           // userName = userName,
                             mutualInfo = "New to SocialSphere",
-                            profilePictureUrl = accountData.account.profilePictureUrl,
+                            //profilePictureUrl = accountData.account.profilePictureUrl,
                             onAddFriend = {
-                                viewModel.sendFriendRequest(uid)
+                                //viewModel.sendFriendRequest(uid)
                             },
                             onRemove = {
-                                viewModel.removeSuggestion(uid)
+                                //viewModel.removeSuggestion(uid)
                             }
-                        )
-                    }
+                        ) */
+                    } */
                 }
             }
-        }
-    }
+       // }
+    //}
 }
 
 @Composable

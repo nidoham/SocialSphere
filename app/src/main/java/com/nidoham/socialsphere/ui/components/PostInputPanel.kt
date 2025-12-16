@@ -1,10 +1,15 @@
 package com.nidoham.socialsphere.ui.components
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -25,7 +30,8 @@ import com.google.firebase.auth.FirebaseAuth
 
 @Composable
 fun PostInputPanel(
-    onPostClick: () -> Unit = {},
+    // CHANGED: Now accepts both text and a list of image URIs
+    onPostClick: (String, List<Uri>) -> Unit = { _, _ -> },
     onPhotoClick: () -> Unit = {},
     onVideoClick: () -> Unit = {},
     onFeelingClick: () -> Unit = {},
@@ -38,6 +44,16 @@ fun PostInputPanel(
     val userProfilePic = currentUser?.photoUrl?.toString()
 
     var postText by remember { mutableStateOf("") }
+
+    // NEW: State to hold selected images
+    var selectedImageUris by remember { mutableStateOf<List<Uri>>(emptyList()) }
+
+    // NEW: Launcher for picking images
+    val multiplePhotoPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetMultipleContents()
+    ) { uris ->
+        selectedImageUris = uris
+    }
 
     Card(
         modifier = modifier
@@ -58,7 +74,7 @@ fun PostInputPanel(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // User Avatar with blue border
+                // User Avatar
                 Box(
                     modifier = Modifier
                         .size(40.dp)
@@ -91,7 +107,7 @@ fun PostInputPanel(
 
                 Spacer(modifier = Modifier.width(12.dp))
 
-                // Actual Text Input Field
+                // Text Input Field
                 TextField(
                     value = postText,
                     onValueChange = { postText = it },
@@ -116,17 +132,20 @@ fun PostInputPanel(
                 // Send Icon Button
                 IconButton(
                     onClick = {
-                        if (postText.isNotBlank()) {
-                            onPostClick()
+                        if (postText.isNotBlank() || selectedImageUris.isNotEmpty()) {
+                            // CHANGED: Pass both text and images
+                            onPostClick(postText, selectedImageUris)
+                            // Reset state
                             postText = ""
+                            selectedImageUris = emptyList()
                         }
                     },
-                    enabled = postText.isNotBlank()
+                    enabled = postText.isNotBlank() || selectedImageUris.isNotEmpty()
                 ) {
                     Icon(
                         imageVector = Icons.Default.Send,
                         contentDescription = "Send Post",
-                        tint = if (postText.isNotBlank())
+                        tint = if (postText.isNotBlank() || selectedImageUris.isNotEmpty())
                             Color(0xFF1877F2)
                         else
                             MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
@@ -140,6 +159,46 @@ fun PostInputPanel(
                         contentDescription = "More Options",
                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                }
+            }
+
+            // NEW: Image Preview Section
+            if (selectedImageUris.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(8.dp))
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(selectedImageUris) { uri ->
+                        Box(
+                            modifier = Modifier.size(80.dp)
+                        ) {
+                            Image(
+                                painter = rememberAsyncImagePainter(uri),
+                                contentDescription = "Selected Image",
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .clip(RoundedCornerShape(8.dp)),
+                                contentScale = ContentScale.Crop
+                            )
+                            // Remove Button (Small X)
+                            IconButton(
+                                onClick = {
+                                    selectedImageUris = selectedImageUris.filter { it != uri }
+                                },
+                                modifier = Modifier
+                                    .align(Alignment.TopEnd)
+                                    .size(20.dp)
+                                    .background(Color.Black.copy(alpha = 0.5f), CircleShape)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Close,
+                                    contentDescription = "Remove",
+                                    tint = Color.White,
+                                    modifier = Modifier.padding(2.dp)
+                                )
+                            }
+                        }
+                    }
                 }
             }
 
@@ -162,7 +221,11 @@ fun PostInputPanel(
                     icon = Icons.Default.Image,
                     label = "Photo",
                     tint = Color(0xFF45BD62),
-                    onClick = onPhotoClick
+                    onClick = {
+                        // CHANGED: Trigger the image picker
+                        multiplePhotoPickerLauncher.launch("image/*")
+                        onPhotoClick() // Keep original callback if needed for logging/analytics
+                    }
                 )
 
                 PostActionButton(

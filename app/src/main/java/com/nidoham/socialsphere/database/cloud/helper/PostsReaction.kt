@@ -6,34 +6,34 @@ import com.nidoham.socialsphere.database.cloud.path.FirebasePath
 import kotlinx.coroutines.tasks.await
 
 /**
- * Manages story reactions in Firestore.
- * Structure: /stories/{storyId}/reactions/{reactionId}
+ * Manages post reactions in Firestore.
+ * Structure: /posts/{postId}/reactions/{reactionId}
  *
  * Each reaction document contains:
  * - userId: String
  * - reactionType: String (like, dislike, love, etc.)
  * - createdAt: Long (timestamp)
  */
-class StoriesReaction {
+class PostsReaction {
     private val db = FirebaseFirestore.getInstance()
 
     /**
-     * Toggle user's reaction on a story.
+     * Toggle user's reaction on a post.
      * If reaction exists, it removes it. If not, it adds it.
      *
-     * @param storyId ID of the story
+     * @param postId ID of the post
      * @param userId ID of the user reacting
      * @param reactionType Type of reaction (like, dislike, love, etc.)
-     * @return Result with boolean indicating if reaction is now active
+     * @return Result indicating success or failure
      */
     suspend fun toggleReaction(
-        storyId: String,
+        postId: String,
         userId: String,
         reactionType: String
     ): Result<Boolean> {
         return try {
-            val reactionRef = db.collection(FirebasePath.STORIES)
-                .document(storyId)
+            val reactionRef = db.collection(FirebasePath.POSTS)
+                .document(postId)
                 .collection("reactions")
                 .document(userId)
 
@@ -45,12 +45,12 @@ class StoriesReaction {
                 if (existingType == reactionType) {
                     // Same reaction → remove it
                     reactionRef.delete().await()
-                    updateReactionCount(storyId, reactionType, -1)
+                    updateReactionCount(postId, reactionType, -1)
                     Result.success(false) // Reaction removed
                 } else {
                     // Different reaction → update it
                     if (existingType != null) {
-                        updateReactionCount(storyId, existingType, -1)
+                        updateReactionCount(postId, existingType, -1)
                     }
                     reactionRef.update(
                         mapOf(
@@ -58,7 +58,7 @@ class StoriesReaction {
                             "updatedAt" to System.currentTimeMillis()
                         )
                     ).await()
-                    updateReactionCount(storyId, reactionType, 1)
+                    updateReactionCount(postId, reactionType, 1)
                     Result.success(true) // Reaction changed
                 }
             } else {
@@ -70,7 +70,7 @@ class StoriesReaction {
                         "createdAt" to System.currentTimeMillis()
                     )
                 ).await()
-                updateReactionCount(storyId, reactionType, 1)
+                updateReactionCount(postId, reactionType, 1)
                 Result.success(true) // Reaction added
             }
         } catch (e: Exception) {
@@ -79,21 +79,21 @@ class StoriesReaction {
     }
 
     /**
-     * Add a reaction to a story.
+     * Add a reaction to a post.
      *
-     * @param storyId ID of the story
+     * @param postId ID of the post
      * @param userId ID of the user reacting
      * @param reactionType Type of reaction
      * @return Result indicating success or failure
      */
     suspend fun addReaction(
-        storyId: String,
+        postId: String,
         userId: String,
         reactionType: String
     ): Result<Unit> {
         return try {
-            val reactionRef = db.collection(FirebasePath.STORIES)
-                .document(storyId)
+            val reactionRef = db.collection(FirebasePath.POSTS)
+                .document(postId)
                 .collection("reactions")
                 .document(userId)
 
@@ -105,7 +105,7 @@ class StoriesReaction {
                 )
             ).await()
 
-            updateReactionCount(storyId, reactionType, 1)
+            updateReactionCount(postId, reactionType, 1)
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
@@ -113,16 +113,16 @@ class StoriesReaction {
     }
 
     /**
-     * Remove a user's reaction from a story.
+     * Remove a user's reaction from a post.
      *
-     * @param storyId ID of the story
+     * @param postId ID of the post
      * @param userId ID of the user
      * @return Result indicating success or failure
      */
-    suspend fun removeReaction(storyId: String, userId: String): Result<Unit> {
+    suspend fun removeReaction(postId: String, userId: String): Result<Unit> {
         return try {
-            val reactionRef = db.collection(FirebasePath.STORIES)
-                .document(storyId)
+            val reactionRef = db.collection(FirebasePath.POSTS)
+                .document(postId)
                 .collection("reactions")
                 .document(userId)
 
@@ -132,7 +132,7 @@ class StoriesReaction {
             reactionRef.delete().await()
 
             if (reactionType != null) {
-                updateReactionCount(storyId, reactionType, -1)
+                updateReactionCount(postId, reactionType, -1)
             }
 
             Result.success(Unit)
@@ -142,16 +142,16 @@ class StoriesReaction {
     }
 
     /**
-     * Get a specific user's reaction on a story.
+     * Get a specific user's reaction on a post.
      *
-     * @param storyId ID of the story
+     * @param postId ID of the post
      * @param userId ID of the user
      * @return Result with reaction type or null if no reaction
      */
-    suspend fun getUserReaction(storyId: String, userId: String): Result<String?> {
+    suspend fun getUserReaction(postId: String, userId: String): Result<String?> {
         return try {
-            val reactionRef = db.collection(FirebasePath.STORIES)
-                .document(storyId)
+            val reactionRef = db.collection(FirebasePath.POSTS)
+                .document(postId)
                 .collection("reactions")
                 .document(userId)
 
@@ -165,15 +165,15 @@ class StoriesReaction {
     }
 
     /**
-     * Get all reactions for a story.
+     * Get all reactions for a post.
      *
-     * @param storyId ID of the story
+     * @param postId ID of the post
      * @return Result with list of reaction data
      */
-    suspend fun getAllReactions(storyId: String): Result<List<Map<String, Any>>> {
+    suspend fun getAllReactions(postId: String): Result<List<Map<String, Any>>> {
         return try {
-            val reactionsRef = db.collection(FirebasePath.STORIES)
-                .document(storyId)
+            val reactionsRef = db.collection(FirebasePath.POSTS)
+                .document(postId)
                 .collection("reactions")
 
             val snapshot = reactionsRef.get().await()
@@ -186,15 +186,15 @@ class StoriesReaction {
     }
 
     /**
-     * Get aggregated reaction counts for a story.
+     * Get aggregated reaction counts for a post.
      *
-     * @param storyId ID of the story
+     * @param postId ID of the post
      * @return Result with map of reaction types to counts
      */
-    suspend fun getReactionCounts(storyId: String): Result<Map<String, Long>> {
+    suspend fun getReactionCounts(postId: String): Result<Map<String, Long>> {
         return try {
-            val reactionsRef = db.collection(FirebasePath.STORIES)
-                .document(storyId)
+            val reactionsRef = db.collection(FirebasePath.POSTS)
+                .document(postId)
                 .collection("reactions")
 
             val snapshot = reactionsRef.get().await()
@@ -214,23 +214,23 @@ class StoriesReaction {
     }
 
     /**
-     * Update reaction count in the story document.
+     * Update reaction count in the post document.
      * This keeps a denormalized count for quick access.
      *
-     * @param storyId ID of the story
+     * @param postId ID of the post
      * @param reactionType Type of reaction
      * @param delta Change in count (+1 or -1)
      */
     private suspend fun updateReactionCount(
-        storyId: String,
+        postId: String,
         reactionType: String,
         delta: Long
     ) {
         try {
-            val storyRef = db.collection(FirebasePath.STORIES).document(storyId)
+            val postRef = db.collection(FirebasePath.POSTS).document(postId)
 
             // Update the specific reaction count in the reactions map
-            storyRef.update(
+            postRef.update(
                 "reactions.$reactionType",
                 FieldValue.increment(delta)
             ).await()
@@ -243,17 +243,17 @@ class StoriesReaction {
     /**
      * Get users who reacted with a specific reaction type.
      *
-     * @param storyId ID of the story
+     * @param postId ID of the post
      * @param reactionType Type of reaction to filter by
      * @return Result with list of user IDs
      */
     suspend fun getUsersByReactionType(
-        storyId: String,
+        postId: String,
         reactionType: String
     ): Result<List<String>> {
         return try {
-            val reactionsRef = db.collection(FirebasePath.STORIES)
-                .document(storyId)
+            val reactionsRef = db.collection(FirebasePath.POSTS)
+                .document(postId)
                 .collection("reactions")
                 .whereEqualTo("reactionType", reactionType)
 
@@ -261,27 +261,6 @@ class StoriesReaction {
             val userIds = snapshot.documents.mapNotNull { it.getString("userId") }
 
             Result.success(userIds)
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
-
-    /**
-     * Check if a user has reacted to a story.
-     *
-     * @param storyId ID of the story
-     * @param userId ID of the user
-     * @return Result with boolean indicating if user has reacted
-     */
-    suspend fun hasUserReacted(storyId: String, userId: String): Result<Boolean> {
-        return try {
-            val reactionRef = db.collection(FirebasePath.STORIES)
-                .document(storyId)
-                .collection("reactions")
-                .document(userId)
-
-            val snapshot = reactionRef.get().await()
-            Result.success(snapshot.exists())
         } catch (e: Exception) {
             Result.failure(e)
         }

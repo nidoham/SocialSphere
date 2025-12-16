@@ -89,6 +89,8 @@ dependencies {
     implementation(libs.firebase.firestore.ktx)  // ✅ KTX version
     implementation(libs.firebase.database.ktx)  // ✅ Fixed duplicate
 
+    implementation("com.google.accompanist:accompanist-swiperefresh:0.32.0")
+
     // Kotlin Coroutines & Serialization
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.kotlinx.coroutines.play.services)
