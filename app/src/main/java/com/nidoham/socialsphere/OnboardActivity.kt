@@ -42,28 +42,29 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.google.android.gms.auth.api.signin.GoogleSignIn
+import com.google.android.gms.auth.api.signin.GoogleSignInAccount
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.android.gms.common.api.ApiException
-import com.google.firebase.Firebase
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.auth.GoogleAuthProvider
-import com.google.firebase.auth.auth
 import com.google.firebase.firestore.FirebaseFirestore
-import com.nidoham.socialsphere.auth.model.Account
+import com.nidoham.socialsphere.database.cloud.model.User
+import com.nidoham.socialsphere.database.cloud.repository.UserRepository
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
+import android.util.Patterns
+import android.util.Log
 
 class OnboardActivity : ComponentActivity() {
     private lateinit var auth: FirebaseAuth
-    private lateinit var firestore: FirebaseFirestore
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        auth = Firebase.auth
-        firestore = FirebaseFirestore.getInstance()
 
-        // Check if user is already signed in
+        auth = FirebaseAuth.getInstance()
+
         if (auth.currentUser != null) {
             navigateToMain()
             return
@@ -72,8 +73,9 @@ class OnboardActivity : ComponentActivity() {
         setContent {
             SocialSphereTheme {
                 OnboardingScreen(
+                    auth = auth,
                     onLoginSuccess = { navigateToMain() },
-                    onNavigateToSignup = { navigateToSignup() }
+                    onNavigateToSignup = { }
                 )
             }
         }
@@ -82,10 +84,6 @@ class OnboardActivity : ComponentActivity() {
     private fun navigateToMain() {
         startActivity(Intent(this, MainActivity::class.java))
         finish()
-    }
-
-    private fun navigateToSignup() {
-        //startActivity(Intent(this, SignupActivity::class.java))
     }
 }
 
@@ -122,16 +120,17 @@ fun SocialSphereTheme(content: @Composable () -> Unit) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun OnboardingScreen(
+    auth: FirebaseAuth,
     onLoginSuccess: () -> Unit,
     onNavigateToSignup: () -> Unit
 ) {
     val context = LocalContext.current
-    val auth = Firebase.auth
     val firestore = FirebaseFirestore.getInstance()
+    val repository = UserRepository.getInstance(firestore, auth)
 
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
-    var passwordVisible by remember { mutableStateOf(false) }
+    var isPasswordVisible by remember { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
@@ -139,35 +138,36 @@ fun OnboardingScreen(
     val scope = rememberCoroutineScope()
     val isDark = isSystemInDarkTheme()
 
-    // Animation states
-    var logoVisible by remember { mutableStateOf(false) }
-    var contentVisible by remember { mutableStateOf(false) }
+    var isLogoVisible by remember { mutableStateOf(false) }
+    var isContentVisible by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
-        logoVisible = true
+        isLogoVisible = true
         delay(300)
-        contentVisible = true
+        isContentVisible = true
     }
 
-    // Function to create or update user in Firestore
-    suspend fun createOrUpdateUserInFirestore(firebaseUser: com.google.firebase.auth.FirebaseUser) {
+    suspend fun syncUserWithDatabase(firebaseUser: FirebaseUser) {
         try {
-            val userDoc = firestore.collection("users").document(firebaseUser.uid)
-            val docSnapshot = userDoc.get().await()
+            val existingUser = repository.getUserById(firebaseUser.uid)
 
-            if (!docSnapshot.exists()) {
-                // Create new user account from FirebaseUser
-                val newUser = Account.from(firebaseUser)
-                userDoc.set(newUser).await()
+            if (existingUser == null) {
+                // Create new user
+                val displayName = firebaseUser.displayName ?: "User"
+                val email = firebaseUser.email
+
+                repository.createUser(displayName, email)
+                Log.d("OnboardActivity", "New user created: ${firebaseUser.uid}")
+            } else {
+                // Update last active timestamp
+                repository.updateLastActive(firebaseUser.uid)
+                Log.d("OnboardActivity", "User activity updated: ${firebaseUser.uid}")
             }
         } catch (e: Exception) {
-            // Log error but don't throw - user is authenticated
-            android.util.Log.e("OnboardActivity", "Failed to create/update user in Firestore", e)
-            throw e
+            Log.e("OnboardActivity", "Failed to sync user with database", e)
         }
     }
 
-    // Google Sign-In configuration
     val googleSignInClient = remember {
         val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
             .requestIdToken(context.getString(R.string.default_web_client_id))
@@ -181,48 +181,40 @@ fun OnboardingScreen(
     ) { result ->
         val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
         try {
-            val account = task.getResult(ApiException::class.java)
+            val account: GoogleSignInAccount = task.getResult(ApiException::class.java)
             scope.launch {
                 isLoading = true
+                errorMessage = null
                 try {
                     val credential = GoogleAuthProvider.getCredential(account.idToken, null)
                     val authResult = auth.signInWithCredential(credential).await()
 
-                    // Create or update user in Firestore
-                    authResult.user?.let { firebaseUser ->
-                        try {
-                            createOrUpdateUserInFirestore(firebaseUser)
-                        } catch (e: Exception) {
-                            // User is authenticated but Firestore update failed
-                            Toast.makeText(
-                                context,
-                                "Logged in but profile sync failed",
-                                Toast.LENGTH_SHORT
-                            ).show()
-                        }
+                    authResult.user?.let { user: FirebaseUser ->
+                        syncUserWithDatabase(user)
                     }
 
                     onLoginSuccess()
                 } catch (e: Exception) {
+                    Log.e("OnboardActivity", "Google sign-in failed", e)
                     errorMessage = "Google sign-in failed: ${e.localizedMessage}"
                 } finally {
                     isLoading = false
                 }
             }
         } catch (e: ApiException) {
+            Log.e("OnboardActivity", "Google sign-in API error", e)
             errorMessage = "Google sign-in failed: ${e.localizedMessage}"
             isLoading = false
         }
     }
 
-    // Email/Password login function
-    fun loginWithEmail() {
+    fun handleEmailLogin() {
         if (email.isBlank() || password.isBlank()) {
             errorMessage = "Please fill in all fields"
             return
         }
 
-        if (!android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
+        if (!Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
             errorMessage = "Please enter a valid email"
             return
         }
@@ -233,22 +225,13 @@ fun OnboardingScreen(
             try {
                 val authResult = auth.signInWithEmailAndPassword(email, password).await()
 
-                // Create or update user in Firestore
-                authResult.user?.let { firebaseUser ->
-                    try {
-                        createOrUpdateUserInFirestore(firebaseUser)
-                    } catch (e: Exception) {
-                        // User is authenticated but Firestore update failed
-                        Toast.makeText(
-                            context,
-                            "Logged in but profile sync failed",
-                            Toast.LENGTH_SHORT
-                        ).show()
-                    }
+                authResult.user?.let { user: FirebaseUser ->
+                    syncUserWithDatabase(user)
                 }
 
                 onLoginSuccess()
             } catch (e: Exception) {
+                Log.e("OnboardActivity", "Email login failed", e)
                 errorMessage = when {
                     e.message?.contains("password", ignoreCase = true) == true -> "Invalid email or password"
                     e.message?.contains("user", ignoreCase = true) == true -> "No account found with this email"
@@ -261,7 +244,35 @@ fun OnboardingScreen(
         }
     }
 
-    // Animated gradient background
+    fun handleForgotPassword() {
+        if (email.isBlank()) {
+            Toast.makeText(
+                context,
+                "Please enter your email first",
+                Toast.LENGTH_SHORT
+            ).show()
+            return
+        }
+
+        scope.launch {
+            try {
+                auth.sendPasswordResetEmail(email).await()
+                Toast.makeText(
+                    context,
+                    "Password reset email sent",
+                    Toast.LENGTH_LONG
+                ).show()
+            } catch (e: Exception) {
+                Log.e("OnboardActivity", "Password reset failed", e)
+                Toast.makeText(
+                    context,
+                    "Failed to send reset email: ${e.localizedMessage}",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+        }
+    }
+
     val infiniteTransition = rememberInfiniteTransition(label = "gradient")
     val animatedOffset by infiniteTransition.animateFloat(
         initialValue = 0f,
@@ -307,9 +318,8 @@ fun OnboardingScreen(
         ) {
             Spacer(modifier = Modifier.height(60.dp))
 
-            // Animated Logo
             AnimatedVisibility(
-                visible = logoVisible,
+                visible = isLogoVisible,
                 enter = scaleIn(
                     animationSpec = spring(
                         dampingRatio = Spring.DampingRatioMediumBouncy,
@@ -343,9 +353,8 @@ fun OnboardingScreen(
 
             Spacer(modifier = Modifier.height(48.dp))
 
-            // Content Card
             AnimatedVisibility(
-                visible = contentVisible,
+                visible = isContentVisible,
                 enter = slideInVertically(
                     initialOffsetY = { it },
                     animationSpec = spring(stiffness = Spring.StiffnessMediumLow)
@@ -380,7 +389,6 @@ fun OnboardingScreen(
 
                         Spacer(modifier = Modifier.height(32.dp))
 
-                        // Error message
                         errorMessage?.let { error ->
                             Card(
                                 modifier = Modifier.fillMaxWidth(),
@@ -409,7 +417,6 @@ fun OnboardingScreen(
                             Spacer(modifier = Modifier.height(16.dp))
                         }
 
-                        // Email Field
                         OutlinedTextField(
                             value = email,
                             onValueChange = {
@@ -441,7 +448,6 @@ fun OnboardingScreen(
 
                         Spacer(modifier = Modifier.height(16.dp))
 
-                        // Password Field
                         OutlinedTextField(
                             value = password,
                             onValueChange = {
@@ -453,14 +459,14 @@ fun OnboardingScreen(
                                 Icon(Icons.Default.Lock, contentDescription = "Password")
                             },
                             trailingIcon = {
-                                IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                                IconButton(onClick = { isPasswordVisible = !isPasswordVisible }) {
                                     Icon(
-                                        imageVector = if (passwordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
-                                        contentDescription = if (passwordVisible) "Hide password" else "Show password"
+                                        imageVector = if (isPasswordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                                        contentDescription = if (isPasswordVisible) "Hide password" else "Show password"
                                     )
                                 }
                             },
-                            visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                            visualTransformation = if (isPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
                             keyboardOptions = KeyboardOptions(
@@ -470,7 +476,7 @@ fun OnboardingScreen(
                             keyboardActions = KeyboardActions(
                                 onDone = {
                                     focusManager.clearFocus()
-                                    loginWithEmail()
+                                    handleEmailLogin()
                                 }
                             ),
                             shape = RoundedCornerShape(12.dp),
@@ -485,34 +491,8 @@ fun OnboardingScreen(
 
                         Spacer(modifier = Modifier.height(8.dp))
 
-                        // Forgot Password
                         TextButton(
-                            onClick = {
-                                if (email.isNotBlank()) {
-                                    scope.launch {
-                                        try {
-                                            auth.sendPasswordResetEmail(email).await()
-                                            Toast.makeText(
-                                                context,
-                                                "Password reset email sent",
-                                                Toast.LENGTH_LONG
-                                            ).show()
-                                        } catch (e: Exception) {
-                                            Toast.makeText(
-                                                context,
-                                                "Failed to send reset email: ${e.localizedMessage}",
-                                                Toast.LENGTH_SHORT
-                                            ).show()
-                                        }
-                                    }
-                                } else {
-                                    Toast.makeText(
-                                        context,
-                                        "Please enter your email first",
-                                        Toast.LENGTH_SHORT
-                                    ).show()
-                                }
-                            },
+                            onClick = { handleForgotPassword() },
                             modifier = Modifier.align(Alignment.End),
                             enabled = !isLoading
                         ) {
@@ -524,9 +504,8 @@ fun OnboardingScreen(
 
                         Spacer(modifier = Modifier.height(24.dp))
 
-                        // Login Button
                         Button(
-                            onClick = { loginWithEmail() },
+                            onClick = { handleEmailLogin() },
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(56.dp),
@@ -553,7 +532,6 @@ fun OnboardingScreen(
 
                         Spacer(modifier = Modifier.height(24.dp))
 
-                        // Divider with text
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically
@@ -570,7 +548,6 @@ fun OnboardingScreen(
 
                         Spacer(modifier = Modifier.height(24.dp))
 
-                        // Google Sign In Button
                         OutlinedButton(
                             onClick = {
                                 googleSignInLauncher.launch(googleSignInClient.signInIntent)
@@ -604,7 +581,6 @@ fun OnboardingScreen(
 
                         Spacer(modifier = Modifier.height(24.dp))
 
-                        // Create Account
                         Row(
                             horizontalArrangement = Arrangement.Center,
                             verticalAlignment = Alignment.CenterVertically
@@ -614,7 +590,7 @@ fun OnboardingScreen(
                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                             )
                             Text(
-                                "Signup",
+                                "Sign Up",
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.clickable {
@@ -629,7 +605,6 @@ fun OnboardingScreen(
             Spacer(modifier = Modifier.height(32.dp))
         }
 
-        // Floating particles animation
         FloatingParticles()
     }
 }

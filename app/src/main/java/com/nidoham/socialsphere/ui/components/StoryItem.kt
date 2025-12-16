@@ -4,14 +4,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -21,12 +14,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -40,9 +28,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.rememberAsyncImagePainter
 import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.firestore.FirebaseFirestore
-import com.nidoham.socialsphere.stories.model.Story
-import kotlinx.coroutines.tasks.await
+import com.nidoham.socialsphere.database.cloud.model.Story
+import com.nidoham.socialsphere.database.cloud.model.User
+import com.nidoham.socialsphere.database.cloud.repository.UserRepository
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 @Composable
 fun StoryItem(
@@ -50,213 +40,259 @@ fun StoryItem(
     story: Story? = null,
     onClick: () -> Unit
 ) {
-    // For Add Story - use current user
+    var user by remember { mutableStateOf<User?>(null) }
+    var isLoading by remember { mutableStateOf(false) }
     val currentUser = FirebaseAuth.getInstance().currentUser
-    val currentUserDisplayName = currentUser?.displayName ?: "User"
-    val currentUserProfilePic = currentUser?.photoUrl?.toString()
 
-    // For regular stories - fetch user data from Firestore
-    var storyUserName by remember { mutableStateOf("Loading...") }
-    var storyUserProfilePic by remember { mutableStateOf<String?>(null) }
-    var isLoadingUser by remember { mutableStateOf(false) }
-
-    // Fetch user data if it's a regular story
-    LaunchedEffect(story?.userId) {
-        if (!isAddStory && story != null) {
-            isLoadingUser = true
-            try {
-                val userDoc = FirebaseFirestore.getInstance()
-                    .collection("users")
-                    .document(story.userId)
-                    .get()
-                    .await()
-
-                storyUserName = userDoc.getString("account.name")
-                    ?: userDoc.getString("account.username")
-                            ?: "Unknown User"
-                storyUserProfilePic = userDoc.getString("account.profilePictureUrl")
-            } catch (e: Exception) {
-                storyUserName = "Unknown User"
-            } finally {
-                isLoadingUser = false
+    LaunchedEffect(isAddStory, story?.userId) {
+        isLoading = true
+        try {
+            user = if (isAddStory) {
+                // For "Add Story", fetch current user from Firestore
+                currentUser?.uid?.let { fetchUserById(it) }
+            } else {
+                // For regular story, fetch story owner from Firestore
+                story?.userId?.let { fetchUserById(it) }
             }
+        } catch (_: Exception) {
+        } finally {
+            isLoading = false
         }
     }
 
     if (isAddStory) {
-        // Add Story Design - Vertical split layout
-        Box(
-            modifier = Modifier
-                .width(110.dp)
-                .height(180.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .clickable { onClick() }
-                .background(MaterialTheme.colorScheme.surfaceVariant)
+        AddStoryItem(
+            user = user,
+            currentUser = currentUser,
+            isLoading = isLoading,
+            onClick = onClick
+        )
+    } else {
+        RegularStoryItem(
+            story = story,
+            storyUser = user,
+            isLoading = isLoading,
+            onClick = onClick
+        )
+    }
+}
+
+@Composable
+private fun AddStoryItem(
+    user: User?,
+    currentUser: com.google.firebase.auth.FirebaseUser?,
+    isLoading: Boolean,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .width(110.dp)
+            .height(180.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .clickable { onClick() }
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        Column(
+            modifier = Modifier.fillMaxSize(),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Column(
-                modifier = Modifier.fillMaxSize(),
-                horizontalAlignment = Alignment.CenterHorizontally
+            // Top section - Profile Picture
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(0.65f)
+                    .background(MaterialTheme.colorScheme.surface),
+                contentAlignment = Alignment.Center
             ) {
-                // Top section with user profile picture
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(0.65f)
-                        .background(MaterialTheme.colorScheme.surface),
-                    contentAlignment = Alignment.Center
-                ) {
-                    if (currentUserProfilePic != null) {
+                when {
+                    isLoading -> {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(28.dp),
+                            strokeWidth = 2.dp
+                        )
+                    }
+                    // Try Firestore user first
+                    user?.avatarUrl != null -> {
                         Image(
-                            painter = rememberAsyncImagePainter(currentUserProfilePic),
+                            painter = rememberAsyncImagePainter(user.avatarUrl),
                             contentDescription = null,
-                            modifier = Modifier.fillMaxSize(),
+                            modifier = Modifier
+                                .size(56.dp)
+                                .clip(CircleShape),
                             contentScale = ContentScale.Crop
                         )
-                    } else {
+                    }
+                    // Fallback to Firebase Auth photo
+                    currentUser?.photoUrl != null -> {
+                        Image(
+                            painter = rememberAsyncImagePainter(currentUser.photoUrl.toString()),
+                            contentDescription = null,
+                            modifier = Modifier
+                                .size(56.dp)
+                                .clip(CircleShape),
+                            contentScale = ContentScale.Crop
+                        )
+                    }
+                    // Default icon
+                    else -> {
                         Icon(
                             imageVector = Icons.Default.Person,
                             contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-                            modifier = Modifier.size(48.dp)
+                            modifier = Modifier.size(48.dp),
+                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                         )
                     }
                 }
-
-                // Bottom section with "Create Story" text
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(0.35f)
-                        .background(MaterialTheme.colorScheme.surfaceVariant),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "Create Story",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.padding(horizontal = 8.dp)
-                    )
-                }
             }
 
-            // Floating Add button at the divider between profile pic and gray bg
+            // Bottom section - "Create" text
             Box(
                 modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .padding(top = (180.dp * 0.65f - 18.dp))
-                    .size(36.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.primary)
-                    .border(
-                        width = 3.dp,
-                        color = MaterialTheme.colorScheme.surfaceVariant,
-                        shape = CircleShape
-                    ),
+                    .fillMaxWidth()
+                    .weight(0.35f)
+                    .background(MaterialTheme.colorScheme.surfaceVariant),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(
-                    imageVector = Icons.Default.Add,
-                    contentDescription = "Add Story",
-                    tint = MaterialTheme.colorScheme.onPrimary,
-                    modifier = Modifier.size(20.dp)
+                Text(
+                    text = "Create Story",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium,
+                    textAlign = TextAlign.Center
                 )
             }
         }
-    } else {
-        // Regular Story Design - Original layout
+
+        // Add button overlay
         Box(
             modifier = Modifier
-                .width(110.dp)
-                .height(180.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .clickable { onClick() }
-                .background(Color(0xFF1C1C1E))
+                .align(Alignment.TopCenter)
+                .padding(top = 95.dp)
+                .size(36.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.primary)
+                .border(3.dp, MaterialTheme.colorScheme.surfaceVariant, CircleShape),
+            contentAlignment = Alignment.Center
         ) {
-            // Story background image
-            if (story?.imageUrl != null) {
-                Image(
-                    painter = rememberAsyncImagePainter(story.imageUrl),
-                    contentDescription = null,
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop
-                )
+            Icon(
+                imageVector = Icons.Default.Add,
+                contentDescription = "Add Story",
+                tint = MaterialTheme.colorScheme.onPrimary,
+                modifier = Modifier.size(20.dp)
+            )
+        }
+    }
+}
 
-                // Gradient overlay for better text readability
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(
-                            Brush.verticalGradient(
-                                colors = listOf(
-                                    Color.Black.copy(alpha = 0.4f),
-                                    Color.Transparent,
-                                    Color.Black.copy(alpha = 0.6f)
-                                )
-                            )
-                        )
-                )
-            }
+@Composable
+private fun RegularStoryItem(
+    story: Story?,
+    storyUser: User?,
+    isLoading: Boolean,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .width(110.dp)
+            .height(180.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .clickable { onClick() }
+            .background(Color(0xFF1C1C1E))
+    ) {
+        // Story image background
+        story?.imageUrl?.let { url ->
+            Image(
+                painter = rememberAsyncImagePainter(url),
+                contentDescription = null,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop
+            )
 
-            // Top-left avatar with profile picture
+            // Gradient overlay
             Box(
                 modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .padding(8.dp)
+                    .fillMaxSize()
+                    .background(
+                        Brush.verticalGradient(
+                            listOf(
+                                Color.Black.copy(alpha = 0.4f),
+                                Color.Transparent,
+                                Color.Black.copy(alpha = 0.6f)
+                            )
+                        )
+                    )
+            )
+        }
+
+        // Profile picture with border
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(8.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(42.dp)
+                    .border(3.dp, Color(0xFF1877F2), CircleShape)
+                    .padding(2.dp)
+                    .clip(CircleShape)
+                    .background(Color.White),
+                contentAlignment = Alignment.Center
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(40.dp)
-                        .border(
-                            width = 3.dp,
-                            color = Color(0xFF1877F2), // Facebook blue border
-                            shape = CircleShape
-                        )
-                        .padding(2.dp)
-                        .clip(CircleShape)
-                        .background(Color.White),
-                    contentAlignment = Alignment.Center
-                ) {
-                    if (isLoadingUser) {
+                when {
+                    isLoading -> {
                         CircularProgressIndicator(
-                            modifier = Modifier.size(16.dp),
-                            strokeWidth = 2.dp
+                            modifier = Modifier.size(18.dp),
+                            strokeWidth = 2.dp,
+                            color = Color(0xFF1877F2)
                         )
-                    } else if (storyUserProfilePic != null) {
+                    }
+                    storyUser?.avatarUrl != null -> {
                         Image(
-                            painter = rememberAsyncImagePainter(storyUserProfilePic),
+                            painter = rememberAsyncImagePainter(storyUser.avatarUrl),
                             contentDescription = null,
                             modifier = Modifier.fillMaxSize(),
                             contentScale = ContentScale.Crop
                         )
-                    } else {
+                    }
+                    else -> {
                         Icon(
                             imageVector = Icons.Default.Person,
                             contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurface,
-                            modifier = Modifier.size(20.dp)
+                            tint = Color(0xFF1877F2),
+                            modifier = Modifier.size(22.dp)
                         )
                     }
                 }
             }
+        }
 
-            // Bottom username
-            Box(
-                modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .padding(8.dp)
-            ) {
-                Text(
-                    text = storyUserName,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    color = Color.White,
-                    lineHeight = 14.sp
-                )
-            }
+        // Username at bottom
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .padding(12.dp, 8.dp)
+        ) {
+            Text(
+                text = storyUser?.displayName
+                    ?: storyUser?.username
+                    ?: "Unknown",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                color = Color.White,
+                lineHeight = 14.sp
+            )
+        }
+    }
+}
+
+private suspend fun fetchUserById(userId: String): User? {
+    return withContext(Dispatchers.IO) {
+        try {
+            UserRepository.getInstance().getUserById(userId)
+        } catch (e: Exception) {
+            null
         }
     }
 }
