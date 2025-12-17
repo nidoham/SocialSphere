@@ -3,12 +3,12 @@ plugins {
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.google.gms.google.services)
-    id("kotlin-parcelize")  // ✅ রাখুন data class এর জন্য
+    id("kotlin-parcelize")
 }
 
 android {
     namespace = "com.nidoham.socialsphere"
-    compileSdk = 36  // ✅ Simplified syntax
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.nidoham.socialsphere"
@@ -37,21 +37,21 @@ android {
     }
 
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_17  // ✅ Kotlin 2.2.21 এর জন্য 17
+        sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
 
     kotlin {
-        jvmToolchain(17)  // ✅ Modern Kotlin syntax
+        jvmToolchain(17)
     }
 
     buildFeatures {
         compose = true
-        buildConfig = true  // ✅ BuildConfig access
+        buildConfig = true
     }
 
     composeOptions {
-        kotlinCompilerExtensionVersion = "1.5.20"  // ✅ Latest stable
+        kotlinCompilerExtensionVersion = "1.5.20"
     }
 
     packaging {
@@ -85,17 +85,17 @@ dependencies {
 
     // Firebase BOM + KTX (Kotlin optimized)
     implementation(platform(libs.firebase.bom))
-    implementation(libs.firebase.auth.ktx)  // ✅ KTX version
-    implementation(libs.firebase.firestore.ktx)  // ✅ KTX version
-    implementation(libs.firebase.database.ktx)  // ✅ Fixed duplicate
+    implementation(libs.firebase.auth.ktx)
+    implementation(libs.firebase.firestore.ktx)
+    implementation(libs.firebase.database.ktx)
 
-    implementation("com.google.accompanist:accompanist-swiperefresh:0.32.0")
+    implementation(libs.accompanist.swiperefresh)
 
     // Kotlin Coroutines & Serialization
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.kotlinx.coroutines.play.services)
-    implementation(libs.kotlinx.serialization.json)  // ✅ JSON serialization
-    implementation(libs.kotlinx.datetime)  // ✅ Date handling
+    implementation(libs.kotlinx.serialization.json)
+    implementation(libs.kotlinx.datetime)
 
     // Auth & Credentials
     implementation(libs.androidx.credentials)
@@ -109,6 +109,8 @@ dependencies {
         exclude(group = "com.google.protobuf", module = "protobuf-javalite")
         exclude(group = "com.google.code.findbugs", module = "jsr305")
     }
+
+    implementation("com.github.nidoham:Social:-SNAPSHOT")
 
     // Testing
     testImplementation(libs.junit)
