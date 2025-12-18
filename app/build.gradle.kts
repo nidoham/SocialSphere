@@ -90,6 +90,7 @@ dependencies {
     implementation(libs.firebase.database.ktx)
 
     implementation(libs.accompanist.swiperefresh)
+    implementation(libs.accompanist.systemuicontroller)
 
     // Kotlin Coroutines & Serialization
     implementation(libs.kotlinx.coroutines.android)
@@ -110,7 +111,7 @@ dependencies {
         exclude(group = "com.google.code.findbugs", module = "jsr305")
     }
 
-    implementation("com.github.nidoham:Social:v1.0.2")
+    implementation("com.github.nidoham:Social:v1.0.9")
 
     // Testing
     testImplementation(libs.junit)

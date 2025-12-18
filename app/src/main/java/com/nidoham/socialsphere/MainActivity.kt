@@ -5,10 +5,13 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -18,13 +21,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
-import androidx.lifecycle.viewmodel.compose.viewModel
-import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.firestore.FirebaseFirestore
-import com.nidoham.socialsphere.ui.screens.*
-import com.nidoham.socialsphere.ui.theme.SocialSphereTheme
+import com.nidoham.socialsphere.ui.screen.*
+import com.nidoham.socialsphere.ui.theme.*
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -42,30 +40,10 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun MainScreen() {
     var selectedTab by remember { mutableIntStateOf(0) }
-    var showSearchDialog by remember { mutableStateOf(false) }
-
-    // Firebase & ViewModel Initialization
-    val auth = remember { FirebaseAuth.getInstance() }
-    val firestore = remember { FirebaseFirestore.getInstance() }
-
-    // বর্তমান ইউজার আইডি (Null Safety সহ)
-    val currentUid = auth.currentUser?.uid ?: ""
-
-    // Repository এবং ViewModel Factory সেটআপ
-    //val repository = remember { PeopleSuggestionsRepositoryImpl(firestore) }
-   // val factory = remember { PeopleSuggestionsViewModelFactory(repository) }
-
-    // ViewModel তৈরি করা
-   // val friendsViewModel: PeopleSuggestionsViewModel = viewModel(factory = factory)
 
     Scaffold(
-        topBar = {
-            AppTopBar(
-                onSearchClick = { showSearchDialog = true },
-                onNotificationClick = { /* Handle notification */ },
-                onProfileClick = { /* Handle profile */ }
-            )
-        },
+        containerColor = DarkBackground,
+        topBar = { AppTopBar() },
         bottomBar = {
             AppBottomNavigationBar(
                 selectedTab = selectedTab,
@@ -76,76 +54,15 @@ fun MainScreen() {
         Box(
             modifier = Modifier
                 .fillMaxSize()
+                .background(DarkBackground)
                 .padding(paddingValues)
         ) {
             when (selectedTab) {
                 0 -> HomeScreen()
-                1 -> ChatsScreen()
-                /*2 -> FriendsScreen(
-                    viewModel = null,
-                    currentUid = currentUid
-                )*/
+                1 -> ChatScreen()
+                2 -> FriendsScreen()
                 3 -> StreamScreen()
                 4 -> MarketsScreen()
-            }
-        }
-
-        // Search Dialog
-        if (showSearchDialog) {
-            SimpleSearchDialog(
-                onDismiss = { showSearchDialog = false }
-            )
-        }
-    }
-}
-
-@Composable
-fun SimpleSearchDialog(onDismiss: () -> Unit) {
-    Dialog(onDismissRequest = onDismiss) {
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surface
-            )
-        ) {
-            Column(
-                modifier = Modifier.padding(24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Search,
-                    contentDescription = "Search",
-                    modifier = Modifier.size(48.dp),
-                    tint = MaterialTheme.colorScheme.primary
-                )
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                Text(
-                    text = "Search",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                Text(
-                    text = "Search functionality coming soon!",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-
-                Spacer(modifier = Modifier.height(24.dp))
-
-                Button(
-                    onClick = onDismiss,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("Close")
-                }
             }
         }
     }
@@ -153,64 +70,73 @@ fun SimpleSearchDialog(onDismiss: () -> Unit) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AppTopBar(
-    onSearchClick: () -> Unit,
-    onNotificationClick: () -> Unit,
-    onProfileClick: () -> Unit
-) {
+fun AppTopBar() {
     TopAppBar(
         title = {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.padding(start = 8.dp)
+                modifier = Modifier.padding(start = 4.dp)
             ) {
                 Image(
                     painter = painterResource(id = R.drawable.app_icon),
                     contentDescription = "App Icon",
                     modifier = Modifier
                         .size(40.dp)
-                        .clip(RoundedCornerShape(8.dp))
+                        .clip(RoundedCornerShape(10.dp))
                 )
-
-                Spacer(modifier = Modifier.width(12.dp))
-
+                Spacer(modifier = Modifier.width(10.dp))
                 Text(
                     text = "SocialSphere",
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary
+                    style = MaterialTheme.typography.titleLarge,
+                    color = TextPrimary
                 )
             }
         },
         actions = {
-            IconButton(onClick = onSearchClick) {
+            // Search Icon
+            IconButton(onClick = { }) {
                 Icon(
-                    imageVector = Icons.Default.Search,
+                    imageVector = Icons.Outlined.Search,
                     contentDescription = "Search",
-                    tint = MaterialTheme.colorScheme.onSurface
+                    tint = IconActive,
+                    modifier = Modifier.size(26.dp)
                 )
             }
 
-            Box {
-                IconButton(onClick = onNotificationClick) {
+            // Notification Icon with Badge
+            Box(
+                modifier = Modifier.padding(end = 4.dp)
+            ) {
+                IconButton(onClick = { }) {
                     Icon(
-                        imageVector = Icons.Default.Notifications,
+                        imageVector = Icons.Outlined.Notifications,
                         contentDescription = "Notifications",
-                        tint = MaterialTheme.colorScheme.onSurface
+                        tint = IconActive,
+                        modifier = Modifier.size(26.dp)
                     )
                 }
-                Badge(
+                // Notification Badge
+                Box(
                     modifier = Modifier
                         .align(Alignment.TopEnd)
-                        .padding(top = 8.dp, end = 8.dp)
+                        .offset(x = (-2).dp, y = 8.dp)
+                        .size(18.dp)
+                        .background(NotificationDot, CircleShape),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Text("3")
+                    Text(
+                        text = "3",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = androidx.compose.ui.graphics.Color.White,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
             }
         },
         colors = TopAppBarDefaults.topAppBarColors(
-            containerColor = MaterialTheme.colorScheme.surface,
-            titleContentColor = MaterialTheme.colorScheme.onSurface
+            containerColor = DarkBackground,
+            titleContentColor = TextPrimary,
+            actionIconContentColor = IconActive
         )
     )
 }
@@ -221,47 +147,57 @@ fun AppBottomNavigationBar(
     onTabSelected: (Int) -> Unit
 ) {
     val items = listOf(
-        NavigationItem("Home", Icons.Default.Home),
-        NavigationItem("Chats", Icons.Default.Chat),
-        NavigationItem("Friends", Icons.Default.People),
-        NavigationItem("Streams ", Icons.Default.VideoLibrary),
-        NavigationItem("Markets", Icons.Default.Store)
+        NavigationItem("Home", Icons.Outlined.Home, Icons.Filled.Home),
+        NavigationItem("Chats", Icons.Outlined.Chat, Icons.Filled.Chat),
+        NavigationItem("Friends", Icons.Outlined.People, Icons.Filled.People),
+        NavigationItem("Streams", Icons.Outlined.VideoLibrary, Icons.Filled.VideoLibrary),
+        NavigationItem("Markets", Icons.Outlined.Store, Icons.Filled.Store)
     )
 
-    NavigationBar(
-        containerColor = MaterialTheme.colorScheme.surface,
-        tonalElevation = 8.dp
+    Surface(
+        color = DarkBackground,
+        tonalElevation = 0.dp,
+        shadowElevation = 0.dp
     ) {
-        items.forEachIndexed { index, item ->
-            NavigationBarItem(
-                icon = {
-                    Icon(
-                        imageVector = item.icon,
-                        contentDescription = item.title,
-                        modifier = Modifier.size(24.dp)
+        NavigationBar(
+            containerColor = DarkBackground,
+            contentColor = IconActive,
+            tonalElevation = 0.dp,
+            modifier = Modifier.height(70.dp)
+        ) {
+            items.forEachIndexed { index, item ->
+                NavigationBarItem(
+                    icon = {
+                        Icon(
+                            imageVector = if (selectedTab == index) item.iconFilled else item.icon,
+                            contentDescription = item.title,
+                            modifier = Modifier.size(26.dp)
+                        )
+                    },
+                    label = {
+                        Text(
+                            text = item.title,
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = if (selectedTab == index) FontWeight.SemiBold else FontWeight.Normal
+                        )
+                    },
+                    selected = selectedTab == index,
+                    onClick = { onTabSelected(index) },
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = Primary,
+                        selectedTextColor = Primary,
+                        indicatorColor = PrimaryContainer.copy(alpha = 0.2f),
+                        unselectedIconColor = IconInactive,
+                        unselectedTextColor = TextTertiary
                     )
-                },
-                label = {
-                    Text(
-                        text = item.title,
-                        fontSize = 11.sp
-                    )
-                },
-                selected = selectedTab == index,
-                onClick = { onTabSelected(index) },
-                colors = NavigationBarItemDefaults.colors(
-                    selectedIconColor = MaterialTheme.colorScheme.primary,
-                    selectedTextColor = MaterialTheme.colorScheme.primary,
-                    indicatorColor = MaterialTheme.colorScheme.primaryContainer,
-                    unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                    unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-            )
+            }
         }
     }
 }
 
 data class NavigationItem(
     val title: String,
-    val icon: ImageVector
+    val icon: ImageVector,
+    val iconFilled: ImageVector
 )

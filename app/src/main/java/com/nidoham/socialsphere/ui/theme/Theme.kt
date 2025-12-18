@@ -1,57 +1,90 @@
 package com.nidoham.socialsphere.ui.theme
 
-import android.app.Activity
-import android.os.Build
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
-import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.runtime.SideEffect
+import androidx.compose.ui.graphics.Color
+import com.google.accompanist.systemuicontroller.rememberSystemUiController
 
 private val DarkColorScheme = darkColorScheme(
-    primary = Purple80,
-    secondary = PurpleGrey80,
-    tertiary = Pink80
-)
-
-private val LightColorScheme = lightColorScheme(
-    primary = Purple40,
-    secondary = PurpleGrey40,
-    tertiary = Pink40
-
-    /* Other default colors to override
-    background = Color(0xFFFFFBFE),
-    surface = Color(0xFFFFFBFE),
+    // Primary colors (Instagram Purple)
+    primary = Primary,
     onPrimary = Color.White,
+    primaryContainer = PrimaryContainer,
+    onPrimaryContainer = PrimaryLight,
+
+    // Secondary colors (Instagram Orange)
+    secondary = Secondary,
     onSecondary = Color.White,
+    secondaryContainer = SecondaryContainer,
+    onSecondaryContainer = SecondaryLight,
+
+    // Tertiary colors (Instagram Pink)
+    tertiary = Tertiary,
     onTertiary = Color.White,
-    onBackground = Color(0xFF1C1B1F),
-    onSurface = Color(0xFF1C1B1F),
-    */
+    tertiaryContainer = TertiaryContainer,
+    onTertiaryContainer = TertiaryLight,
+
+    // Background colors
+    background = DarkBackground,
+    onBackground = TextPrimary,
+
+    // Surface colors
+    surface = DarkSurface,
+    onSurface = TextPrimary,
+    surfaceVariant = DarkCard,
+    onSurfaceVariant = TextSecondary,
+    surfaceTint = Primary,
+
+    // Container colors
+    surfaceContainer = DarkCard,
+    surfaceContainerHigh = DarkElevated,
+    surfaceContainerHighest = DarkElevated,
+    surfaceContainerLow = DarkSurface,
+    surfaceContainerLowest = DarkBackground,
+
+    // Inverse colors
+    inverseSurface = TextPrimary,
+    inverseOnSurface = DarkBackground,
+    inversePrimary = PrimaryDark,
+
+    // Error colors
+    error = ErrorRed,
+    onError = Color.White,
+    errorContainer = Color(0xFF5C1A1A),
+    onErrorContainer = Color(0xFFFFB4AB),
+
+    // Outline colors
+    outline = BorderColor,
+    outlineVariant = DividerColor,
+
+    // Scrim
+    scrim = Color.Black
 )
 
 @Composable
 fun SocialSphereTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
-    // Dynamic color is available on Android 12+
-    dynamicColor: Boolean = true,
     content: @Composable () -> Unit
 ) {
-    val colorScheme = when {
-        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-            val context = LocalContext.current
-            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-        }
+    val systemUiController = rememberSystemUiController()
 
-        darkTheme -> DarkColorScheme
-        else -> LightColorScheme
+    SideEffect {
+        // Set status bar color
+        systemUiController.setStatusBarColor(
+            color = StatusBar,
+            darkIcons = false
+        )
+
+        // Set navigation bar color
+        systemUiController.setNavigationBarColor(
+            color = NavigationBar,
+            darkIcons = false
+        )
     }
 
     MaterialTheme(
-        colorScheme = colorScheme,
+        colorScheme = DarkColorScheme,
         typography = Typography,
         content = content
     )

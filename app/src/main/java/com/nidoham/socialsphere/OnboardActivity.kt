@@ -13,7 +13,6 @@ import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -23,6 +22,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -32,16 +32,19 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.google.android.gms.auth.api.signin.GoogleSignIn
+import androidx.compose.ui.unit.sp
 import com.google.android.gms.auth.api.signin.GoogleSignInAccount
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.android.gms.common.api.ApiException
@@ -49,7 +52,7 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.auth.GoogleAuthProvider
 import com.nidoham.social.repository.UserRepository
-import com.nidoham.socialsphere.MainActivity
+import com.nidoham.socialsphere.ui.theme.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
@@ -58,7 +61,6 @@ class OnboardActivity : ComponentActivity() {
     private lateinit var auth: FirebaseAuth
     private lateinit var userRepository: UserRepository
 
-    // Pre-load webClientId OUTSIDE composable to avoid try-catch issues
     private val webClientId: String? by lazy {
         try {
             getString(R.string.default_web_client_id)
@@ -74,7 +76,6 @@ class OnboardActivity : ComponentActivity() {
         auth = FirebaseAuth.getInstance()
         userRepository = UserRepository()
 
-        // Check if user is already logged in
         if (auth.currentUser != null) {
             navigateToMain()
             return
@@ -101,36 +102,6 @@ class OnboardActivity : ComponentActivity() {
     }
 }
 
-@Composable
-fun SocialSphereTheme(content: @Composable () -> Unit) {
-    val isDark = isSystemInDarkTheme()
-    val colorScheme = if (isDark) darkColorScheme(
-        primary = Color(0xFF6C63FF),
-        secondary = Color(0xFF03DAC6),
-        tertiary = Color(0xFFBB86FC),
-        background = Color(0xFF121212),
-        surface = Color(0xFF1E1E1E),
-        onPrimary = Color.White,
-        onSecondary = Color.Black,
-        onBackground = Color.White,
-        onSurface = Color.White,
-    ) else lightColorScheme(
-        primary = Color(0xFF6C63FF),
-        secondary = Color(0xFF03DAC6),
-        tertiary = Color(0xFF9C27B0),
-        background = Color(0xFFF5F5F5),
-        surface = Color.White,
-        onPrimary = Color.White,
-        onSecondary = Color.White,
-        onBackground = Color(0xFF1C1B1F),
-        onSurface = Color(0xFF1C1B1F),
-    )
-
-    MaterialTheme(colorScheme = colorScheme) {
-        content()
-    }
-}
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun OnboardingScreen(
@@ -150,7 +121,6 @@ fun OnboardingScreen(
 
     val focusManager = LocalFocusManager.current
     val scope = rememberCoroutineScope()
-    val isDark = isSystemInDarkTheme()
 
     var isLogoVisible by remember { mutableStateOf(false) }
     var isContentVisible by remember { mutableStateOf(false) }
@@ -161,7 +131,6 @@ fun OnboardingScreen(
         isContentVisible = true
     }
 
-    // Sync user data with database after authentication
     suspend fun syncUserWithDatabase(firebaseUser: FirebaseUser) {
         try {
             val result = userRepository.getUserById(firebaseUser.uid)
@@ -186,7 +155,6 @@ fun OnboardingScreen(
         }
     }
 
-    // Google Sign-In setup - NO try-catch around composables!
     val googleSignInClient = remember(webClientId) {
         webClientId?.let { id ->
             try {
@@ -304,43 +272,51 @@ fun OnboardingScreen(
         }
     }
 
-    // Animated gradient background
+    // Instagram-inspired animated gradient background
     val infiniteTransition = rememberInfiniteTransition(label = "gradient")
     val animatedOffset by infiniteTransition.animateFloat(
         initialValue = 0f,
         targetValue = 1000f,
         animationSpec = infiniteRepeatable(
-            animation = tween(8000, easing = LinearEasing),
+            animation = tween(10000, easing = LinearEasing),
             repeatMode = RepeatMode.Reverse
         ),
         label = "offset"
     )
-
-    val gradientColors = if (isDark) {
-        listOf(
-            Color(0xFF1a1a2e),
-            Color(0xFF16213e),
-            Color(0xFF0f3460)
-        )
-    } else {
-        listOf(
-            Color(0xFFE3F2FD),
-            Color(0xFFBBDEFB),
-            Color(0xFF90CAF9)
-        )
-    }
 
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(
                 Brush.verticalGradient(
-                    colors = gradientColors,
+                    colors = listOf(
+                        DarkBackground,
+                        Color(0xFF1C212B),
+                        Color(0xFF252933)
+                    ),
                     startY = animatedOffset,
                     endY = animatedOffset + 1000f
                 )
             )
     ) {
+        // Instagram gradient overlay (subtle)
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .alpha(0.1f)
+                .background(
+                    Brush.radialGradient(
+                        colors = listOf(
+                            InstagramPurple,
+                            InstagramPink,
+                            InstagramOrange,
+                            Color.Transparent
+                        ),
+                        radius = 1800f
+                    )
+                )
+        )
+
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -361,42 +337,43 @@ fun OnboardingScreen(
                 ) + fadeIn()
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    // App Icon
                     Box(
                         modifier = Modifier
-                            .size(100.dp)
+                            .size(110.dp)
                             .clip(CircleShape)
                             .background(
                                 Brush.linearGradient(
                                     colors = listOf(
-                                        Color(0xFF6C63FF),
-                                        Color(0xFF03DAC6)
+                                        InstagramPurple,
+                                        InstagramPink,
+                                        InstagramOrange
                                     )
                                 )
                             ),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Group,
+                            painter = painterResource(id = R.drawable.app_icon),
                             contentDescription = "SocialSphere",
-                            modifier = Modifier.size(60.dp),
+                            modifier = Modifier.size(65.dp),
                             tint = Color.White
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(20.dp))
 
                     Text(
                         text = "SocialSphere",
-                        fontSize = 32.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onBackground
+                        style = MaterialTheme.typography.displaySmall,
+                        color = TextPrimary
                     )
+
+                    Spacer(modifier = Modifier.height(4.dp))
 
                     Text(
                         text = "Connect with the world",
-                        fontSize = 14.sp,
-                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = TextSecondary
                     )
                 }
             }
@@ -413,29 +390,28 @@ fun OnboardingScreen(
             ) {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(24.dp),
+                    shape = RoundedCornerShape(20.dp),
                     colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surface
+                        containerColor = DarkSurface
                     ),
-                    elevation = CardDefaults.cardElevation(8.dp)
+                    elevation = CardDefaults.cardElevation(12.dp)
                 ) {
                     Column(
-                        modifier = Modifier.padding(24.dp),
+                        modifier = Modifier.padding(28.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Text(
                             text = "Welcome Back",
-                            fontSize = 24.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
+                            style = MaterialTheme.typography.headlineMedium,
+                            color = TextPrimary
                         )
 
                         Spacer(modifier = Modifier.height(8.dp))
 
                         Text(
                             text = "Sign in to continue",
-                            fontSize = 14.sp,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = TextSecondary
                         )
 
                         Spacer(modifier = Modifier.height(32.dp))
@@ -445,28 +421,29 @@ fun OnboardingScreen(
                             Card(
                                 modifier = Modifier.fillMaxWidth(),
                                 colors = CardDefaults.cardColors(
-                                    containerColor = MaterialTheme.colorScheme.errorContainer
+                                    containerColor = ErrorRed.copy(alpha = 0.15f)
                                 ),
-                                shape = RoundedCornerShape(8.dp)
+                                shape = RoundedCornerShape(12.dp)
                             ) {
                                 Row(
-                                    modifier = Modifier.padding(12.dp),
+                                    modifier = Modifier.padding(14.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Icon(
                                         Icons.Default.Error,
                                         contentDescription = "Error",
-                                        tint = MaterialTheme.colorScheme.error
+                                        tint = ErrorRed,
+                                        modifier = Modifier.size(20.dp)
                                     )
-                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Spacer(modifier = Modifier.width(10.dp))
                                     Text(
                                         text = error,
-                                        color = MaterialTheme.colorScheme.onErrorContainer,
-                                        fontSize = 14.sp
+                                        color = TextPrimary,
+                                        style = MaterialTheme.typography.bodySmall
                                     )
                                 }
                             }
-                            Spacer(modifier = Modifier.height(16.dp))
+                            Spacer(modifier = Modifier.height(20.dp))
                         }
 
                         // Email Field
@@ -476,9 +453,13 @@ fun OnboardingScreen(
                                 email = it
                                 errorMessage = null
                             },
-                            label = { Text("Email") },
+                            label = { Text("Email", style = MaterialTheme.typography.bodyMedium) },
                             leadingIcon = {
-                                Icon(Icons.Default.Email, contentDescription = "Email")
+                                Icon(
+                                    Icons.Outlined.Email,
+                                    contentDescription = "Email",
+                                    tint = IconInactive
+                                )
                             },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
@@ -489,17 +470,20 @@ fun OnboardingScreen(
                             keyboardActions = KeyboardActions(
                                 onNext = { focusManager.moveFocus(FocusDirection.Down) }
                             ),
-                            shape = RoundedCornerShape(12.dp),
+                            shape = RoundedCornerShape(14.dp),
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = MaterialTheme.colorScheme.primary,
-                                unfocusedBorderColor = MaterialTheme.colorScheme.onSurface.copy(
-                                    alpha = 0.3f
-                                )
+                                focusedBorderColor = Primary,
+                                unfocusedBorderColor = BorderColor,
+                                focusedLabelColor = Primary,
+                                unfocusedLabelColor = TextTertiary,
+                                focusedTextColor = TextPrimary,
+                                unfocusedTextColor = TextPrimary,
+                                cursorColor = Primary
                             ),
                             enabled = !isLoading
                         )
 
-                        Spacer(modifier = Modifier.height(16.dp))
+                        Spacer(modifier = Modifier.height(20.dp))
 
                         // Password Field
                         OutlinedTextField(
@@ -508,21 +492,26 @@ fun OnboardingScreen(
                                 password = it
                                 errorMessage = null
                             },
-                            label = { Text("Password") },
+                            label = { Text("Password", style = MaterialTheme.typography.bodyMedium) },
                             leadingIcon = {
-                                Icon(Icons.Default.Lock, contentDescription = "Password")
+                                Icon(
+                                    Icons.Outlined.Lock,
+                                    contentDescription = "Password",
+                                    tint = IconInactive
+                                )
                             },
                             trailingIcon = {
                                 IconButton(onClick = { isPasswordVisible = !isPasswordVisible }) {
                                     Icon(
                                         imageVector = if (isPasswordVisible)
-                                            Icons.Default.Visibility
+                                            Icons.Outlined.Visibility
                                         else
-                                            Icons.Default.VisibilityOff,
+                                            Icons.Outlined.VisibilityOff,
                                         contentDescription = if (isPasswordVisible)
                                             "Hide password"
                                         else
-                                            "Show password"
+                                            "Show password",
+                                        tint = IconInactive
                                     )
                                 }
                             },
@@ -542,17 +531,20 @@ fun OnboardingScreen(
                                     handleEmailLogin()
                                 }
                             ),
-                            shape = RoundedCornerShape(12.dp),
+                            shape = RoundedCornerShape(14.dp),
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = MaterialTheme.colorScheme.primary,
-                                unfocusedBorderColor = MaterialTheme.colorScheme.onSurface.copy(
-                                    alpha = 0.3f
-                                )
+                                focusedBorderColor = Primary,
+                                unfocusedBorderColor = BorderColor,
+                                focusedLabelColor = Primary,
+                                unfocusedLabelColor = TextTertiary,
+                                focusedTextColor = TextPrimary,
+                                unfocusedTextColor = TextPrimary,
+                                cursorColor = Primary
                             ),
                             enabled = !isLoading
                         )
 
-                        Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(12.dp))
 
                         // Forgot Password
                         TextButton(
@@ -562,7 +554,8 @@ fun OnboardingScreen(
                         ) {
                             Text(
                                 "Forgot Password?",
-                                color = MaterialTheme.colorScheme.primary
+                                color = LinkBlue,
+                                style = MaterialTheme.typography.bodySmall
                             )
                         }
 
@@ -573,10 +566,11 @@ fun OnboardingScreen(
                             onClick = { handleEmailLogin() },
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(56.dp),
-                            shape = RoundedCornerShape(12.dp),
+                                .height(54.dp),
+                            shape = RoundedCornerShape(14.dp),
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.primary
+                                containerColor = Primary,
+                                disabledContainerColor = Primary.copy(alpha = 0.5f)
                             ),
                             enabled = !isLoading
                         ) {
@@ -584,37 +578,42 @@ fun OnboardingScreen(
                                 CircularProgressIndicator(
                                     modifier = Modifier.size(24.dp),
                                     color = Color.White,
-                                    strokeWidth = 2.dp
+                                    strokeWidth = 2.5.dp
                                 )
                             } else {
                                 Text(
                                     "Login",
-                                    fontSize = 16.sp,
+                                    style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Bold
                                 )
                             }
                         }
 
-                        // Google Sign-In section - Only if client is available
                         googleSignInClient?.let { client ->
-                            Spacer(modifier = Modifier.height(24.dp))
+                            Spacer(modifier = Modifier.height(28.dp))
 
                             // Divider
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                HorizontalDivider(modifier = Modifier.weight(1f))
+                                HorizontalDivider(
+                                    modifier = Modifier.weight(1f),
+                                    color = DividerColor
+                                )
                                 Text(
                                     "OR",
                                     modifier = Modifier.padding(horizontal = 16.dp),
-                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
-                                    fontSize = 12.sp
+                                    color = TextTertiary,
+                                    style = MaterialTheme.typography.labelSmall
                                 )
-                                HorizontalDivider(modifier = Modifier.weight(1f))
+                                HorizontalDivider(
+                                    modifier = Modifier.weight(1f),
+                                    color = DividerColor
+                                )
                             }
 
-                            Spacer(modifier = Modifier.height(24.dp))
+                            Spacer(modifier = Modifier.height(28.dp))
 
                             // Google Sign-In Button
                             OutlinedButton(
@@ -623,10 +622,14 @@ fun OnboardingScreen(
                                 },
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .height(56.dp),
-                                shape = RoundedCornerShape(12.dp),
+                                    .height(54.dp),
+                                shape = RoundedCornerShape(14.dp),
                                 colors = ButtonDefaults.outlinedButtonColors(
-                                    containerColor = if (isDark) Color(0xFF2C2C2C) else Color.White
+                                    containerColor = DarkCard
+                                ),
+                                border = androidx.compose.foundation.BorderStroke(
+                                    1.dp,
+                                    BorderColor
                                 ),
                                 enabled = !isLoading
                             ) {
@@ -635,22 +638,22 @@ fun OnboardingScreen(
                                     horizontalArrangement = Arrangement.Center
                                 ) {
                                     Icon(
-                                        imageVector = Icons.Default.Login,
+                                        imageVector = ImageVector.vectorResource(id = R.drawable.ic_google),
                                         contentDescription = "Google",
-                                        modifier = Modifier.size(24.dp),
-                                        tint = MaterialTheme.colorScheme.primary
+                                        modifier = Modifier.size(22.dp),
+                                        tint = Color.Unspecified
                                     )
                                     Spacer(modifier = Modifier.width(12.dp))
                                     Text(
                                         "Continue with Google",
-                                        fontSize = 16.sp,
-                                        color = MaterialTheme.colorScheme.onSurface
+                                        style = MaterialTheme.typography.titleSmall,
+                                        color = TextPrimary
                                     )
                                 }
                             }
                         }
 
-                        Spacer(modifier = Modifier.height(24.dp))
+                        Spacer(modifier = Modifier.height(28.dp))
 
                         // Sign Up Link
                         Row(
@@ -659,12 +662,14 @@ fun OnboardingScreen(
                         ) {
                             Text(
                                 "Don't have an account? ",
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                color = TextSecondary,
+                                style = MaterialTheme.typography.bodyMedium
                             )
                             Text(
                                 "Sign Up",
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.primary,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Primary,
+                                style = MaterialTheme.typography.bodyMedium,
                                 modifier = Modifier.clickable {
                                     if (!isLoading) onNavigateToSignup()
                                 }
@@ -674,7 +679,7 @@ fun OnboardingScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(40.dp))
         }
 
         FloatingParticles()
@@ -683,7 +688,7 @@ fun OnboardingScreen(
 
 @Composable
 fun FloatingParticles() {
-    val particles = remember { List(8) { ParticleState() } }
+    val particles = remember { List(10) { ParticleState() } }
 
     particles.forEachIndexed { index, particle ->
         val infiniteTransition = rememberInfiniteTransition(label = "particle_$index")
@@ -712,7 +717,7 @@ fun FloatingParticles() {
             modifier = Modifier
                 .offset(x = offsetX.dp, y = offsetY.dp)
                 .size(particle.size.dp)
-                .alpha(0.3f)
+                .alpha(0.2f)
                 .clip(CircleShape)
                 .background(particle.color)
         )
@@ -720,16 +725,17 @@ fun FloatingParticles() {
 }
 
 data class ParticleState(
-    val startX: Float = (0..300).random().toFloat(),
-    val endX: Float = (0..300).random().toFloat(),
-    val startY: Float = (0..800).random().toFloat(),
-    val endY: Float = (0..800).random().toFloat(),
-    val size: Int = (4..12).random(),
-    val duration: Int = (3000..6000).random(),
+    val startX: Float = (0..350).random().toFloat(),
+    val endX: Float = (0..350).random().toFloat(),
+    val startY: Float = (0..900).random().toFloat(),
+    val endY: Float = (0..900).random().toFloat(),
+    val size: Int = (3..10).random(),
+    val duration: Int = (4000..8000).random(),
     val color: Color = listOf(
-        Color(0xFF6C63FF),
-        Color(0xFF03DAC6),
-        Color(0xFFBB86FC),
-        Color(0xFF9C27B0)
+        InstagramPurple,
+        InstagramPink,
+        InstagramOrange,
+        Primary,
+        Secondary
     ).random()
 )

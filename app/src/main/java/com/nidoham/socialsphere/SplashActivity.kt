@@ -6,6 +6,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
@@ -18,9 +19,14 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
+import com.nidoham.socialsphere.ui.theme.DarkBackground
+import com.nidoham.socialsphere.ui.theme.InstagramPurple
+import com.nidoham.socialsphere.ui.theme.InstagramPink
+import com.nidoham.socialsphere.ui.theme.InstagramOrange
 import com.nidoham.socialsphere.ui.theme.SocialSphereTheme
 import kotlinx.coroutines.delay
 
@@ -30,7 +36,6 @@ class SplashActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         setContent {
-            // Apply system theme (Day/Night)
             SocialSphereTheme {
                 SplashScreen(
                     onTimeout = {
@@ -51,34 +56,65 @@ class SplashActivity : ComponentActivity() {
 @Composable
 fun SplashScreen(onTimeout: () -> Unit) {
 
-    var visible by remember { mutableStateOf(false) }
+    var logoVisible by remember { mutableStateOf(false) }
+    var gradientVisible by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
-        visible = true
-        delay(1500) // Splash duration
+        delay(100)
+        gradientVisible = true
+        delay(200)
+        logoVisible = true
+        delay(2000) // Total splash duration: 2.3 seconds
         onTimeout()
     }
 
-    // Use Surface to respect Day/Night theme background
     Surface(
         modifier = Modifier.fillMaxSize(),
-        color = MaterialTheme.colorScheme.background
+        color = DarkBackground
     ) {
         Box(
             modifier = Modifier.fillMaxSize(),
             contentAlignment = Alignment.Center
         ) {
+            // Instagram-inspired gradient background (subtle)
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .alpha(if (gradientVisible) 0.15f else 0f)
+                    .background(
+                        brush = Brush.radialGradient(
+                            colors = listOf(
+                                InstagramPurple,
+                                InstagramPink,
+                                InstagramOrange,
+                                DarkBackground
+                            ),
+                            radius = 1500f
+                        )
+                    )
+            )
+
+            // App logo with animation
             AnimatedVisibility(
-                visible = visible,
-                enter = fadeIn(animationSpec = tween(800)) + scaleIn(
-                    initialScale = 0.8f,
-                    animationSpec = tween(800)
-                )
+                visible = logoVisible,
+                enter = fadeIn(
+                    animationSpec = tween(
+                        durationMillis = 800,
+                        easing = androidx.compose.animation.core.FastOutSlowInEasing
+                    )
+                ) + scaleIn(
+                    initialScale = 0.7f,
+                    animationSpec = tween(
+                        durationMillis = 800,
+                        easing = androidx.compose.animation.core.FastOutSlowInEasing
+                    )
+                ),
+                exit = fadeOut(animationSpec = tween(400))
             ) {
                 Image(
                     painter = painterResource(id = R.drawable.app_icon),
-                    contentDescription = "App Logo",
-                    modifier = Modifier.size(160.dp)
+                    contentDescription = "SocialSphere Logo",
+                    modifier = Modifier.size(180.dp)
                 )
             }
         }
