@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "275407213066",
+    "firebase_url": "https://social-sphere-6dde0-default-rtdb.asia-southeast1.firebasedatabase.app",
+    "project_id": "social-sphere-6dde0",
+    "storage_bucket": "social-sphere-6dde0.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:275407213066:android:d965a1f5ac2aa3eed345f3",
+        "android_client_info": {
+          "package_name": "com.nidoham.socialsphere"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "275407213066-4hn18ks4mi09bdf0mcn10v65k4ftjslk.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.nidoham.socialsphere",
+            "certificate_hash": "ee10b6e73e428e72b12e3df6144aa7d1f07ee43f"
+          }
+        },
+        {
+          "client_id": "275407213066-t6imfse5ba36h6tdlemeb8qgrf8dq0c9.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBsUI99K4Oc1TPQLRMr-i6aOKs_neO4sB8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "275407213066-t6imfse5ba36h6tdlemeb8qgrf8dq0c9.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
