@@ -21,10 +21,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.rememberAsyncImagePainter
 import com.google.firebase.auth.FirebaseAuth
+import com.nidoham.social.model.User
+import com.nidoham.social.repository.UserRepository
 import com.nidoham.socialsphere.database.cloud.model.Story
-import com.nidoham.socialsphere.database.cloud.model.User
-import com.nidoham.socialsphere.database.cloud.repository.UserRepository
 import com.nidoham.socialsphere.ui.viewmodel.StoryViewModel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 private const val TAG = "StorySection"
 
@@ -35,7 +37,8 @@ private const val TAG = "StorySection"
 @Composable
 fun StorySection(
     viewModel: StoryViewModel,
-    snackbarHostState: SnackbarHostState = remember { SnackbarHostState() }
+    snackbarHostState: SnackbarHostState = remember { SnackbarHostState() },
+    userRepository: UserRepository = UserRepository()
 ) {
     var showAddDialog by remember { mutableStateOf(false) }
 
@@ -99,7 +102,8 @@ fun StorySection(
             // Add Story Item (first item)
             StoryItem(
                 isAddStory = true,
-                onClick = { showAddDialog = true }
+                onClick = { showAddDialog = true },
+                userRepository = userRepository
             )
 
             // Regular Story Items - Clean version without reactions
@@ -108,6 +112,7 @@ fun StorySection(
 
                 CleanStoryItem(
                     story = story,
+                    userRepository = userRepository,
                     onClick = {
                         viewModel.incrementViews(story.id)
                         Log.d(TAG, "Story clicked: ${story.id}")
@@ -137,19 +142,39 @@ fun StorySection(
 @Composable
 fun CleanStoryItem(
     story: Story,
+    userRepository: UserRepository = UserRepository(),
     onClick: () -> Unit = {}
 ) {
     var storyUser by remember { mutableStateOf<User?>(null) }
     var isLoadingUser by remember { mutableStateOf(false) }
+    var hasError by remember { mutableStateOf(false) }
 
     LaunchedEffect(story.userId) {
         isLoadingUser = true
+        hasError = false
+
         try {
-            Log.d(TAG, "Fetching user for story: ${story.userId}")
-            storyUser = UserRepository.getInstance().getUserById(story.userId)
-            Log.d(TAG, "User fetched: ${storyUser?.displayName}, avatar: ${storyUser?.avatarUrl}")
+            withContext(Dispatchers.IO) {
+                Log.d(TAG, "Fetching user for story: ${story.userId}")
+
+                val result = userRepository.getUserById(story.userId)
+
+                result.onSuccess { user ->
+                    storyUser = user
+                    if (user != null) {
+                        Log.d(TAG, "User fetched: ${user.profile.displayName}, avatar: ${user.profile.avatarUrl}")
+                    } else {
+                        Log.e(TAG, "User not found for ID: ${story.userId}")
+                        hasError = true
+                    }
+                }.onFailure { e ->
+                    Log.e(TAG, "Error fetching user: ${e.message}", e)
+                    hasError = true
+                }
+            }
         } catch (e: Exception) {
-            Log.e(TAG, "Error fetching user: ${e.message}", e)
+            Log.e(TAG, "Exception fetching user: ${e.message}", e)
+            hasError = true
         } finally {
             isLoadingUser = false
         }
@@ -170,6 +195,9 @@ fun CleanStoryItem(
                     model = url,
                     onError = {
                         Log.e(TAG, "Failed to load story image: $url")
+                    },
+                    onSuccess = {
+                        Log.d(TAG, "Story image loaded successfully: $url")
                     }
                 ),
                 contentDescription = "Story image",
@@ -193,7 +221,7 @@ fun CleanStoryItem(
             )
         }
 
-        // Profile picture with border - FIXED
+        // Profile picture with border - FIXED to use nested User model
         Box(
             modifier = Modifier
                 .align(Alignment.TopStart)
@@ -213,13 +241,17 @@ fun CleanStoryItem(
                         color = Color(0xFF1877F2)
                     )
                 }
-                !storyUser?.avatarUrl.isNullOrBlank() -> {
-                    Log.d(TAG, "Displaying avatar: ${storyUser?.avatarUrl}")
+                !storyUser?.profile?.avatarUrl.isNullOrBlank() -> {
+                    Log.d(TAG, "Displaying avatar: ${storyUser?.profile?.avatarUrl}")
                     Image(
                         painter = rememberAsyncImagePainter(
-                            model = storyUser?.avatarUrl,
-                            onError = {
-                                Log.e(TAG, "Failed to load avatar: ${storyUser?.avatarUrl}")
+                            model = storyUser?.profile?.avatarUrl,
+                            onError = { error ->
+                                Log.e(TAG, "Failed to load avatar: ${storyUser?.profile?.avatarUrl}")
+                                Log.e(TAG, "Error: ${error.result.throwable.message}")
+                            },
+                            onSuccess = {
+                                Log.d(TAG, "Avatar loaded successfully")
                             }
                         ),
                         contentDescription = "User avatar",
@@ -228,7 +260,7 @@ fun CleanStoryItem(
                     )
                 }
                 else -> {
-                    Log.d(TAG, "Using default icon for user")
+                    Log.d(TAG, "Using default icon for user (hasError: $hasError)")
                     Icon(
                         imageVector = Icons.Default.Person,
                         contentDescription = "Default avatar",
@@ -239,20 +271,29 @@ fun CleanStoryItem(
             }
         }
 
-        // Username at bottom
-        Text(
-            text = storyUser?.displayName
-                ?: storyUser?.username
-                ?: "Loading...",
+        // Username at bottom - FIXED to use nested User model
+        Box(
             modifier = Modifier
                 .align(Alignment.BottomStart)
-                .padding(12.dp, 8.dp),
-            fontSize = 12.sp,
-            fontWeight = FontWeight.SemiBold,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-            color = Color.White,
-            lineHeight = 14.sp
-        )
+                .padding(12.dp, 8.dp)
+        ) {
+            val displayText = when {
+                isLoadingUser -> "Loading..."
+                storyUser?.profile?.displayName?.isNotBlank() == true -> storyUser!!.profile.displayName
+                storyUser?.profile?.username?.isNotBlank() == true -> storyUser!!.profile.username
+                hasError -> "Unknown User"
+                else -> "Loading..."
+            }
+
+            Text(
+                text = displayText,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                color = Color.White,
+                lineHeight = 14.sp
+            )
+        }
     }
 }

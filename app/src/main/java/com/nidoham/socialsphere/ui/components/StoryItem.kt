@@ -27,12 +27,11 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImagePainter
 import coil.compose.rememberAsyncImagePainter
 import com.google.firebase.auth.FirebaseAuth
+import com.nidoham.social.model.User
+import com.nidoham.social.repository.UserRepository
 import com.nidoham.socialsphere.database.cloud.model.Story
-import com.nidoham.socialsphere.database.cloud.model.User
-import com.nidoham.socialsphere.database.cloud.repository.UserRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -42,7 +41,8 @@ private const val TAG = "StoryItem"
 fun StoryItem(
     isAddStory: Boolean = false,
     story: Story? = null,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    userRepository: UserRepository = UserRepository()
 ) {
     var user by remember { mutableStateOf<User?>(null) }
     var isLoading by remember { mutableStateOf(true) }
@@ -59,7 +59,7 @@ fun StoryItem(
                 Log.d(TAG, "Current user UID: $uid")
 
                 user = uid?.let {
-                    fetchUserById(it)
+                    fetchUserById(it, userRepository)
                 } ?: run {
                     Log.e(TAG, "❌ No authenticated user found")
                     null
@@ -76,17 +76,17 @@ fun StoryItem(
                     Log.e(TAG, "❌ Story userId is null or blank!")
                     user = null
                 } else {
-                    user = fetchUserById(userId)
+                    user = fetchUserById(userId, userRepository)
                 }
             }
 
             // Log final user state
             Log.d(TAG, "Final user state:")
             Log.d(TAG, "  - User ID: ${user?.id}")
-            Log.d(TAG, "  - Display Name: ${user?.displayName}")
-            Log.d(TAG, "  - Username: ${user?.username}")
-            Log.d(TAG, "  - Avatar URL: ${user?.avatarUrl}")
-            Log.d(TAG, "  - Email: ${user?.email}")
+            Log.d(TAG, "  - Display Name: ${user?.profile?.displayName}")
+            Log.d(TAG, "  - Username: ${user?.profile?.username}")
+            Log.d(TAG, "  - Avatar URL: ${user?.profile?.avatarUrl}")
+            Log.d(TAG, "  - Email: ${user?.profile?.email}")
 
         } catch (e: Exception) {
             Log.e(TAG, "❌ Exception in LaunchedEffect: ${e.message}", e)
@@ -147,10 +147,10 @@ private fun AddStoryItem(
                             strokeWidth = 2.dp
                         )
                     }
-                    // Try Firestore user first
-                    !user?.avatarUrl.isNullOrBlank() -> {
+                    // Try Firestore user first (nested in profile)
+                    !user?.profile?.avatarUrl.isNullOrBlank() -> {
                         Image(
-                            painter = rememberAsyncImagePainter(user?.avatarUrl),
+                            painter = rememberAsyncImagePainter(user?.profile?.avatarUrl),
                             contentDescription = null,
                             modifier = Modifier.fillMaxSize(),
                             contentScale = ContentScale.Crop
@@ -224,8 +224,8 @@ private fun RegularStoryItem(
 ) {
     Log.d(TAG, "🎨 RegularStoryItem Composing")
     Log.d(TAG, "   Story: ${story?.id}")
-    Log.d(TAG, "   User: ${storyUser?.displayName}")
-    Log.d(TAG, "   Avatar: ${storyUser?.avatarUrl}")
+    Log.d(TAG, "   User: ${storyUser?.profile?.displayName}")
+    Log.d(TAG, "   Avatar: ${storyUser?.profile?.avatarUrl}")
     Log.d(TAG, "   Loading: $isLoading")
 
     Box(
@@ -291,21 +291,21 @@ private fun RegularStoryItem(
                         color = Color(0xFF1877F2)
                     )
                 }
-                !storyUser?.avatarUrl.isNullOrBlank() -> {
-                    Log.d(TAG, "🖼️ Attempting to load avatar: ${storyUser?.avatarUrl}")
+                !storyUser?.profile?.avatarUrl.isNullOrBlank() -> {
+                    Log.d(TAG, "🖼️ Attempting to load avatar: ${storyUser?.profile?.avatarUrl}")
 
                     val painter = rememberAsyncImagePainter(
-                        model = storyUser?.avatarUrl,
+                        model = storyUser?.profile?.avatarUrl,
                         contentScale = ContentScale.Crop,
                         onError = { error ->
                             Log.e(TAG, "❌ Avatar load FAILED!")
-                            Log.e(TAG, "   URL: ${storyUser?.avatarUrl}")
+                            Log.e(TAG, "   URL: ${storyUser?.profile?.avatarUrl}")
                             Log.e(TAG, "   Error: ${error.result.throwable.message}")
                             error.result.throwable.printStackTrace()
                         },
                         onSuccess = {
                             Log.d(TAG, "✅ Avatar loaded successfully!")
-                            Log.d(TAG, "   URL: ${storyUser?.avatarUrl}")
+                            Log.d(TAG, "   URL: ${storyUser?.profile?.avatarUrl}")
                         },
                         onLoading = {
                             Log.d(TAG, "⏳ Avatar loading...")
@@ -325,7 +325,7 @@ private fun RegularStoryItem(
                 }
                 else -> {
                     Log.d(TAG, "👤 Using default Person icon")
-                    Log.d(TAG, "   Reason: avatarUrl = '${storyUser?.avatarUrl}'")
+                    Log.d(TAG, "   Reason: avatarUrl = '${storyUser?.profile?.avatarUrl}'")
                     Icon(
                         imageVector = Icons.Default.Person,
                         contentDescription = "Default avatar",
@@ -344,8 +344,8 @@ private fun RegularStoryItem(
         ) {
             val displayText = when {
                 isLoading -> "Loading..."
-                storyUser?.displayName?.isNotBlank() == true -> storyUser.displayName!!
-                storyUser?.username?.isNotBlank() == true -> storyUser.username
+                storyUser?.profile?.displayName?.isNotBlank() == true -> storyUser.profile.displayName
+                storyUser?.profile?.username?.isNotBlank() == true -> storyUser.profile.username
                 else -> "Unknown"
             }
 
@@ -364,7 +364,7 @@ private fun RegularStoryItem(
     }
 }
 
-private suspend fun fetchUserById(userId: String): User? {
+private suspend fun fetchUserById(userId: String, userRepository: UserRepository): User? {
     return withContext(Dispatchers.IO) {
         try {
             Log.d(TAG, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
@@ -372,29 +372,41 @@ private suspend fun fetchUserById(userId: String): User? {
             Log.d(TAG, "   Collection: /users")
             Log.d(TAG, "   Document ID: $userId")
 
-            val repository = UserRepository.getInstance()
-            val user = repository.getUserById(userId)
+            val result = userRepository.getUserById(userId)
 
-            if (user != null) {
-                Log.d(TAG, "✅ USER FOUND IN FIRESTORE!")
-                Log.d(TAG, "   ID: ${user.id}")
-                Log.d(TAG, "   Username: ${user.username}")
-                Log.d(TAG, "   Display Name: ${user.displayName}")
-                Log.d(TAG, "   Email: ${user.email}")
-                Log.d(TAG, "   Avatar URL: ${user.avatarUrl}")
-                Log.d(TAG, "   Avatar is blank: ${user.avatarUrl.isNullOrBlank()}")
-                Log.d(TAG, "   Created At: ${user.createdAt}")
-            } else {
-                Log.e(TAG, "❌ USER NOT FOUND!")
-                Log.e(TAG, "   The document /users/$userId does not exist")
-                Log.e(TAG, "   Please check:")
-                Log.e(TAG, "   1. Is the user created in Firestore?")
-                Log.e(TAG, "   2. Is the userId correct?")
-                Log.e(TAG, "   3. Are Firestore rules allowing read access?")
-            }
-            Log.d(TAG, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-
-            user
+            result.fold(
+                onSuccess = { user ->
+                    if (user != null) {
+                        Log.d(TAG, "✅ USER FOUND IN FIRESTORE!")
+                        Log.d(TAG, "   ID: ${user.id}")
+                        Log.d(TAG, "   Username: ${user.profile.username}")
+                        Log.d(TAG, "   Display Name: ${user.profile.displayName}")
+                        Log.d(TAG, "   Email: ${user.profile.email}")
+                        Log.d(TAG, "   Avatar URL: ${user.profile.avatarUrl}")
+                        Log.d(TAG, "   Avatar is blank: ${user.profile.avatarUrl.isBlank()}")
+                        Log.d(TAG, "   Created At: ${user.metadata.createdAt}")
+                    } else {
+                        Log.e(TAG, "❌ USER NOT FOUND!")
+                        Log.e(TAG, "   The document /users/$userId does not exist")
+                        Log.e(TAG, "   Please check:")
+                        Log.e(TAG, "   1. Is the user created in Firestore?")
+                        Log.e(TAG, "   2. Is the userId correct?")
+                        Log.e(TAG, "   3. Are Firestore rules allowing read access?")
+                    }
+                    Log.d(TAG, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+                    user
+                },
+                onFailure = { e ->
+                    Log.e(TAG, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+                    Log.e(TAG, "❌ FAILURE WHILE FETCHING USER")
+                    Log.e(TAG, "   User ID: $userId")
+                    Log.e(TAG, "   Exception: ${e.javaClass.simpleName}")
+                    Log.e(TAG, "   Message: ${e.message}")
+                    e.printStackTrace()
+                    Log.e(TAG, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+                    null
+                }
+            )
         } catch (e: Exception) {
             Log.e(TAG, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
             Log.e(TAG, "❌ EXCEPTION WHILE FETCHING USER")

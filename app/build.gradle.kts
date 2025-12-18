@@ -110,7 +110,7 @@ dependencies {
         exclude(group = "com.google.code.findbugs", module = "jsr305")
     }
 
-    implementation("com.github.nidoham:Social:-SNAPSHOT")
+    implementation("com.github.nidoham:Social:v1.0.2")
 
     // Testing
     testImplementation(libs.junit)

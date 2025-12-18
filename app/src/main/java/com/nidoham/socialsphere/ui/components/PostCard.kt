@@ -22,8 +22,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.rememberAsyncImagePainter
+import com.nidoham.social.model.User
+import com.nidoham.social.repository.UserRepository
 import com.nidoham.socialsphere.database.cloud.model.Post
-import com.nidoham.socialsphere.database.cloud.repository.UserRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -34,24 +35,44 @@ fun PostCard(
     onLikeClick: () -> Unit,
     onCommentClick: () -> Unit,
     onShareClick: () -> Unit,
-    onMoreClick: () -> Unit
+    onMoreClick: () -> Unit,
+    userRepository: UserRepository = UserRepository() // Inject repository
 ) {
     // State to hold the fetched author details
     var authorName by remember { mutableStateOf("Loading...") }
     var authorAvatarUrl by remember { mutableStateOf<String?>(null) }
+    var isLoading by remember { mutableStateOf(true) }
+    var hasError by remember { mutableStateOf(false) }
 
     // Fetch user details when the composable enters composition or authorId changes
     LaunchedEffect(post.authorId) {
-        // Switch to IO dispatcher for network operations
-        withContext(Dispatchers.IO) {
-            val user = UserRepository.getInstance().getUserById(post.authorId)
-            if (user != null) {
-                // Use displayName if available, fallback to username
-                authorName = user.displayName?.takeIf { it.isNotBlank() } ?: user.username
-                authorAvatarUrl = user.avatarUrl
-            } else {
-                authorName = "Unknown User"
+        isLoading = true
+        hasError = false
+
+        try {
+            // Switch to IO dispatcher for network operations
+            withContext(Dispatchers.IO) {
+                val result = userRepository.getUserById(post.authorId)
+                result.onSuccess { user ->
+                    if (user != null) {
+                        // Access nested profile properties correctly
+                        authorName = user.profile.displayName.takeIf { it.isNotBlank() }
+                            ?: user.profile.username
+                        authorAvatarUrl = user.profile.avatarUrl.takeIf { it.isNotBlank() }
+                    } else {
+                        authorName = "Unknown User"
+                        hasError = true
+                    }
+                }.onFailure {
+                    authorName = "Unknown User"
+                    hasError = true
+                }
             }
+        } catch (e: Exception) {
+            authorName = "Unknown User"
+            hasError = true
+        } finally {
+            isLoading = false
         }
     }
 
@@ -68,7 +89,8 @@ fun PostCard(
                 userName = authorName,
                 timeAgo = timeAgo,
                 profilePicUrl = authorAvatarUrl,
-                onMoreClick = onMoreClick
+                onMoreClick = onMoreClick,
+                isLoading = isLoading
             )
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -79,11 +101,13 @@ fun PostCard(
                 Spacer(modifier = Modifier.height(12.dp))
             }
 
-            // Post Image (Check mediaUrls from Post model)
-            if (post.hasMedia()) {
+            // Post Image - Check if mediaUrls list is not empty
+            if (post.mediaUrls.isNotEmpty()) {
                 post.mediaUrls.firstOrNull()?.let { imageUrl ->
-                    PostImage(imageUrl = imageUrl)
-                    Spacer(modifier = Modifier.height(12.dp))
+                    if (imageUrl.isNotBlank()) {
+                        PostImage(imageUrl = imageUrl)
+                        Spacer(modifier = Modifier.height(12.dp))
+                    }
                 }
             }
 
@@ -95,7 +119,7 @@ fun PostCard(
                 PostActionButton(
                     icon = Icons.Default.ThumbUp,
                     label = "Like",
-                    count = formatCount(post.getReactionCount()),
+                    count = formatCount(post.reactions.likes),
                     onClick = onLikeClick
                 )
                 PostActionButton(
@@ -131,7 +155,8 @@ private fun PostHeader(
     userName: String,
     timeAgo: String,
     profilePicUrl: String?,
-    onMoreClick: () -> Unit
+    onMoreClick: () -> Unit,
+    isLoading: Boolean = false
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -153,20 +178,29 @@ private fun PostHeader(
                     .background(MaterialTheme.colorScheme.surfaceVariant),
                 contentAlignment = Alignment.Center
             ) {
-                if (profilePicUrl != null) {
-                    Image(
-                        painter = rememberAsyncImagePainter(profilePicUrl),
-                        contentDescription = "Profile Picture",
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop
-                    )
-                } else {
-                    Icon(
-                        Icons.Default.AccountCircle,
-                        contentDescription = "User",
-                        modifier = Modifier.size(36.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                when {
+                    isLoading -> {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(24.dp),
+                            strokeWidth = 2.dp
+                        )
+                    }
+                    profilePicUrl != null -> {
+                        Image(
+                            painter = rememberAsyncImagePainter(profilePicUrl),
+                            contentDescription = "Profile Picture",
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                    }
+                    else -> {
+                        Icon(
+                            Icons.Default.AccountCircle,
+                            contentDescription = "User",
+                            modifier = Modifier.size(36.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
             }
 

@@ -2,6 +2,8 @@ package com.nidoham.socialsphere
 
 import android.content.Intent
 import android.os.Bundle
+import android.util.Log
+import android.util.Patterns
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -9,7 +11,6 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -33,7 +34,6 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -48,23 +48,33 @@ import com.google.android.gms.common.api.ApiException
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.auth.GoogleAuthProvider
-import com.google.firebase.firestore.FirebaseFirestore
-import com.nidoham.socialsphere.database.cloud.model.User
-import com.nidoham.socialsphere.database.cloud.repository.UserRepository
+import com.nidoham.social.repository.UserRepository
+import com.nidoham.socialsphere.MainActivity
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
-import android.util.Patterns
-import android.util.Log
 
 class OnboardActivity : ComponentActivity() {
     private lateinit var auth: FirebaseAuth
+    private lateinit var userRepository: UserRepository
+
+    // Pre-load webClientId OUTSIDE composable to avoid try-catch issues
+    private val webClientId: String? by lazy {
+        try {
+            getString(R.string.default_web_client_id)
+        } catch (e: Exception) {
+            Log.e("OnboardActivity", "Failed to load web client ID", e)
+            null
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         auth = FirebaseAuth.getInstance()
+        userRepository = UserRepository()
 
+        // Check if user is already logged in
         if (auth.currentUser != null) {
             navigateToMain()
             return
@@ -74,8 +84,12 @@ class OnboardActivity : ComponentActivity() {
             SocialSphereTheme {
                 OnboardingScreen(
                     auth = auth,
+                    userRepository = userRepository,
+                    webClientId = webClientId,
                     onLoginSuccess = { navigateToMain() },
-                    onNavigateToSignup = { }
+                    onNavigateToSignup = {
+                        Toast.makeText(this@OnboardActivity, "Signup coming soon!", Toast.LENGTH_SHORT).show()
+                    }
                 )
             }
         }
@@ -121,12 +135,12 @@ fun SocialSphereTheme(content: @Composable () -> Unit) {
 @Composable
 fun OnboardingScreen(
     auth: FirebaseAuth,
+    userRepository: UserRepository,
+    webClientId: String?,
     onLoginSuccess: () -> Unit,
     onNavigateToSignup: () -> Unit
 ) {
     val context = LocalContext.current
-    val firestore = FirebaseFirestore.getInstance()
-    val repository = UserRepository.getInstance(firestore, auth)
 
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
@@ -147,33 +161,45 @@ fun OnboardingScreen(
         isContentVisible = true
     }
 
+    // Sync user data with database after authentication
     suspend fun syncUserWithDatabase(firebaseUser: FirebaseUser) {
         try {
-            val existingUser = repository.getUserById(firebaseUser.uid)
+            val result = userRepository.getUserById(firebaseUser.uid)
 
-            if (existingUser == null) {
-                // Create new user
-                val displayName = firebaseUser.displayName ?: "User"
-                val email = firebaseUser.email
-
-                repository.createUser(displayName, email)
-                Log.d("OnboardActivity", "New user created: ${firebaseUser.uid}")
-            } else {
-                // Update last active timestamp
-                repository.updateLastActive(firebaseUser.uid)
-                Log.d("OnboardActivity", "User activity updated: ${firebaseUser.uid}")
-            }
+            result.fold(
+                onSuccess = { existingUser ->
+                    if (existingUser == null) {
+                        userRepository.createUser(firebaseUser)
+                        Log.d("OnboardActivity", "New user created: ${firebaseUser.uid}")
+                    } else {
+                        userRepository.updateLastLogin(firebaseUser.uid)
+                        Log.d("OnboardActivity", "User login updated: ${firebaseUser.uid}")
+                    }
+                },
+                onFailure = { e ->
+                    Log.e("OnboardActivity", "Failed to check user existence", e)
+                    userRepository.createUser(firebaseUser)
+                }
+            )
         } catch (e: Exception) {
             Log.e("OnboardActivity", "Failed to sync user with database", e)
         }
     }
 
-    val googleSignInClient = remember {
-        val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
-            .requestIdToken(context.getString(R.string.default_web_client_id))
-            .requestEmail()
-            .build()
-        GoogleSignIn.getClient(context, gso)
+    // Google Sign-In setup - NO try-catch around composables!
+    val googleSignInClient = remember(webClientId) {
+        webClientId?.let { id ->
+            try {
+                val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+                    .requestIdToken(id)
+                    .requestEmail()
+                    .build()
+                GoogleSignIn.getClient(context, gso)
+            } catch (e: Exception) {
+                Log.e("OnboardActivity", "Failed to initialize Google Sign-In", e)
+                null
+            }
+        }
     }
 
     val googleSignInLauncher = rememberLauncherForActivityResult(
@@ -189,7 +215,7 @@ fun OnboardingScreen(
                     val credential = GoogleAuthProvider.getCredential(account.idToken, null)
                     val authResult = auth.signInWithCredential(credential).await()
 
-                    authResult.user?.let { user: FirebaseUser ->
+                    authResult.user?.let { user ->
                         syncUserWithDatabase(user)
                     }
 
@@ -203,7 +229,7 @@ fun OnboardingScreen(
             }
         } catch (e: ApiException) {
             Log.e("OnboardActivity", "Google sign-in API error", e)
-            errorMessage = "Google sign-in failed: ${e.localizedMessage}"
+            errorMessage = "Google sign-in cancelled or failed"
             isLoading = false
         }
     }
@@ -219,13 +245,18 @@ fun OnboardingScreen(
             return
         }
 
+        if (password.length < 6) {
+            errorMessage = "Password must be at least 6 characters"
+            return
+        }
+
         scope.launch {
             isLoading = true
             errorMessage = null
             try {
                 val authResult = auth.signInWithEmailAndPassword(email, password).await()
 
-                authResult.user?.let { user: FirebaseUser ->
+                authResult.user?.let { user ->
                     syncUserWithDatabase(user)
                 }
 
@@ -233,10 +264,13 @@ fun OnboardingScreen(
             } catch (e: Exception) {
                 Log.e("OnboardActivity", "Email login failed", e)
                 errorMessage = when {
-                    e.message?.contains("password", ignoreCase = true) == true -> "Invalid email or password"
-                    e.message?.contains("user", ignoreCase = true) == true -> "No account found with this email"
-                    e.message?.contains("network", ignoreCase = true) == true -> "Network error. Please try again"
-                    else -> "Login failed: ${e.localizedMessage}"
+                    e.message?.contains("password", ignoreCase = true) == true ->
+                        "Invalid email or password"
+                    e.message?.contains("user", ignoreCase = true) == true ->
+                        "No account found with this email"
+                    e.message?.contains("network", ignoreCase = true) == true ->
+                        "Network error. Please try again"
+                    else -> "Login failed. Please try again"
                 }
             } finally {
                 isLoading = false
@@ -246,11 +280,12 @@ fun OnboardingScreen(
 
     fun handleForgotPassword() {
         if (email.isBlank()) {
-            Toast.makeText(
-                context,
-                "Please enter your email first",
-                Toast.LENGTH_SHORT
-            ).show()
+            Toast.makeText(context, "Please enter your email first", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        if (!Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
+            Toast.makeText(context, "Please enter a valid email", Toast.LENGTH_SHORT).show()
             return
         }
 
@@ -259,20 +294,17 @@ fun OnboardingScreen(
                 auth.sendPasswordResetEmail(email).await()
                 Toast.makeText(
                     context,
-                    "Password reset email sent",
+                    "Password reset email sent. Check your inbox.",
                     Toast.LENGTH_LONG
                 ).show()
             } catch (e: Exception) {
                 Log.e("OnboardActivity", "Password reset failed", e)
-                Toast.makeText(
-                    context,
-                    "Failed to send reset email: ${e.localizedMessage}",
-                    Toast.LENGTH_SHORT
-                ).show()
+                Toast.makeText(context, "Failed to send reset email", Toast.LENGTH_SHORT).show()
             }
         }
     }
 
+    // Animated gradient background
     val infiniteTransition = rememberInfiniteTransition(label = "gradient")
     val animatedOffset by infiniteTransition.animateFloat(
         initialValue = 0f,
@@ -318,6 +350,7 @@ fun OnboardingScreen(
         ) {
             Spacer(modifier = Modifier.height(60.dp))
 
+            // Animated Logo
             AnimatedVisibility(
                 visible = isLogoVisible,
                 enter = scaleIn(
@@ -328,11 +361,28 @@ fun OnboardingScreen(
                 ) + fadeIn()
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Image(
-                        painter = painterResource(id = R.drawable.app_icon),
-                        contentDescription = "App Logo",
-                        modifier = Modifier.size(100.dp)
-                    )
+                    // App Icon
+                    Box(
+                        modifier = Modifier
+                            .size(100.dp)
+                            .clip(CircleShape)
+                            .background(
+                                Brush.linearGradient(
+                                    colors = listOf(
+                                        Color(0xFF6C63FF),
+                                        Color(0xFF03DAC6)
+                                    )
+                                )
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Group,
+                            contentDescription = "SocialSphere",
+                            modifier = Modifier.size(60.dp),
+                            tint = Color.White
+                        )
+                    }
 
                     Spacer(modifier = Modifier.height(16.dp))
 
@@ -353,6 +403,7 @@ fun OnboardingScreen(
 
             Spacer(modifier = Modifier.height(48.dp))
 
+            // Login Card
             AnimatedVisibility(
                 visible = isContentVisible,
                 enter = slideInVertically(
@@ -389,6 +440,7 @@ fun OnboardingScreen(
 
                         Spacer(modifier = Modifier.height(32.dp))
 
+                        // Error Message
                         errorMessage?.let { error ->
                             Card(
                                 modifier = Modifier.fillMaxWidth(),
@@ -417,6 +469,7 @@ fun OnboardingScreen(
                             Spacer(modifier = Modifier.height(16.dp))
                         }
 
+                        // Email Field
                         OutlinedTextField(
                             value = email,
                             onValueChange = {
@@ -448,6 +501,7 @@ fun OnboardingScreen(
 
                         Spacer(modifier = Modifier.height(16.dp))
 
+                        // Password Field
                         OutlinedTextField(
                             value = password,
                             onValueChange = {
@@ -461,12 +515,21 @@ fun OnboardingScreen(
                             trailingIcon = {
                                 IconButton(onClick = { isPasswordVisible = !isPasswordVisible }) {
                                     Icon(
-                                        imageVector = if (isPasswordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
-                                        contentDescription = if (isPasswordVisible) "Hide password" else "Show password"
+                                        imageVector = if (isPasswordVisible)
+                                            Icons.Default.Visibility
+                                        else
+                                            Icons.Default.VisibilityOff,
+                                        contentDescription = if (isPasswordVisible)
+                                            "Hide password"
+                                        else
+                                            "Show password"
                                     )
                                 }
                             },
-                            visualTransformation = if (isPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                            visualTransformation = if (isPasswordVisible)
+                                VisualTransformation.None
+                            else
+                                PasswordVisualTransformation(),
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
                             keyboardOptions = KeyboardOptions(
@@ -491,6 +554,7 @@ fun OnboardingScreen(
 
                         Spacer(modifier = Modifier.height(8.dp))
 
+                        // Forgot Password
                         TextButton(
                             onClick = { handleForgotPassword() },
                             modifier = Modifier.align(Alignment.End),
@@ -504,6 +568,7 @@ fun OnboardingScreen(
 
                         Spacer(modifier = Modifier.height(24.dp))
 
+                        // Login Button
                         Button(
                             onClick = { handleEmailLogin() },
                             modifier = Modifier
@@ -530,57 +595,64 @@ fun OnboardingScreen(
                             }
                         }
 
-                        Spacer(modifier = Modifier.height(24.dp))
+                        // Google Sign-In section - Only if client is available
+                        googleSignInClient?.let { client ->
+                            Spacer(modifier = Modifier.height(24.dp))
 
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            HorizontalDivider(modifier = Modifier.weight(1f))
-                            Text(
-                                "OR",
-                                modifier = Modifier.padding(horizontal = 16.dp),
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
-                                fontSize = 12.sp
-                            )
-                            HorizontalDivider(modifier = Modifier.weight(1f))
-                        }
-
-                        Spacer(modifier = Modifier.height(24.dp))
-
-                        OutlinedButton(
-                            onClick = {
-                                googleSignInLauncher.launch(googleSignInClient.signInIntent)
-                            },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(56.dp),
-                            shape = RoundedCornerShape(12.dp),
-                            colors = ButtonDefaults.outlinedButtonColors(
-                                containerColor = if (isDark) Color(0xFF2C2C2C) else Color.White
-                            ),
-                            enabled = !isLoading
-                        ) {
+                            // Divider
                             Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.Center
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Image(
-                                    painter = painterResource(id = R.drawable.ic_google),
-                                    contentDescription = "Google",
-                                    modifier = Modifier.size(24.dp)
-                                )
-                                Spacer(modifier = Modifier.width(12.dp))
+                                HorizontalDivider(modifier = Modifier.weight(1f))
                                 Text(
-                                    "Continue with Google",
-                                    fontSize = 16.sp,
-                                    color = MaterialTheme.colorScheme.onSurface
+                                    "OR",
+                                    modifier = Modifier.padding(horizontal = 16.dp),
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                                    fontSize = 12.sp
                                 )
+                                HorizontalDivider(modifier = Modifier.weight(1f))
+                            }
+
+                            Spacer(modifier = Modifier.height(24.dp))
+
+                            // Google Sign-In Button
+                            OutlinedButton(
+                                onClick = {
+                                    googleSignInLauncher.launch(client.signInIntent)
+                                },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(56.dp),
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    containerColor = if (isDark) Color(0xFF2C2C2C) else Color.White
+                                ),
+                                enabled = !isLoading
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Login,
+                                        contentDescription = "Google",
+                                        modifier = Modifier.size(24.dp),
+                                        tint = MaterialTheme.colorScheme.primary
+                                    )
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Text(
+                                        "Continue with Google",
+                                        fontSize = 16.sp,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
                             }
                         }
 
                         Spacer(modifier = Modifier.height(24.dp))
 
+                        // Sign Up Link
                         Row(
                             horizontalArrangement = Arrangement.Center,
                             verticalAlignment = Alignment.CenterVertically
@@ -613,8 +685,8 @@ fun OnboardingScreen(
 fun FloatingParticles() {
     val particles = remember { List(8) { ParticleState() } }
 
-    particles.forEach { particle ->
-        val infiniteTransition = rememberInfiniteTransition(label = "particle")
+    particles.forEachIndexed { index, particle ->
+        val infiniteTransition = rememberInfiniteTransition(label = "particle_$index")
 
         val offsetY by infiniteTransition.animateFloat(
             initialValue = particle.startY,
@@ -623,7 +695,7 @@ fun FloatingParticles() {
                 animation = tween(particle.duration, easing = LinearEasing),
                 repeatMode = RepeatMode.Reverse
             ),
-            label = "y"
+            label = "y_$index"
         )
 
         val offsetX by infiniteTransition.animateFloat(
@@ -633,7 +705,7 @@ fun FloatingParticles() {
                 animation = tween(particle.duration / 2, easing = FastOutSlowInEasing),
                 repeatMode = RepeatMode.Reverse
             ),
-            label = "x"
+            label = "x_$index"
         )
 
         Box(
