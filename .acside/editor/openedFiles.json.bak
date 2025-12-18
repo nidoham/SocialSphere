@@ -1,0 +1,20 @@
+{
+  "allFiles": [
+    {
+      "file": "/storage/emulated/0/AndroidIDEProjects/SocialSphere/app/build.gradle.kts",
+      "selection": {
+        "end": {
+          "column": 31,
+          "index": 3405,
+          "line": 117
+        },
+        "start": {
+          "column": 31,
+          "index": 3405,
+          "line": 117
+        }
+      }
+    }
+  ],
+  "selectedFile": "/storage/emulated/0/AndroidIDEProjects/SocialSphere/app/build.gradle.kts"
+}
