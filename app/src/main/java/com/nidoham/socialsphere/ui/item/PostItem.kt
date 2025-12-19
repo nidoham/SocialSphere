@@ -1,5 +1,6 @@
 package com.nidoham.socialsphere.ui.item
 
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -11,7 +12,8 @@ import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Comment
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Share
-import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.BookmarkBorder
+import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -20,8 +22,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
@@ -34,6 +39,7 @@ data class Post(
     val description: String,
     val likes: Int,
     val commentsCount: Int,
+    val timestamp: Long = System.currentTimeMillis(),
     val isLiked: Boolean = false
 )
 
@@ -44,107 +50,138 @@ fun PostItem(
     modifier: Modifier = Modifier,
     onPostClick: (String) -> Unit = {},
     onLikeClick: (String) -> Unit = {},
-    onProfileClick: (String) -> Unit = {}
+    onCommentClick: (String) -> Unit = {},
+    onShareClick: (String) -> Unit = {},
+    onSaveClick: (String) -> Unit = {},
+    onProfileClick: (String) -> Unit = {},
+    onMoreClick: (String) -> Unit = {}
 ) {
+    var isLiked by remember { mutableStateOf(post.isLiked) }
+    val likeColor by animateColorAsState(
+        targetValue = if (isLiked) Color(0xFFE91E63) else MaterialTheme.colorScheme.onSurfaceVariant,
+        label = "like_color"
+    )
+
     Card(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 4.dp),
-        shape = RoundedCornerShape(12.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+            .padding(vertical = 6.dp),
+        shape = RoundedCornerShape(16.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        )
     ) {
-        Column {
-            // Header
+        Column(
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            // Header - User Info
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(12.dp),
+                    .padding(12.dp)
+                    .clickable { onProfileClick(post.username) },
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                // Profile Picture
                 AsyncImage(
                     model = ImageRequest.Builder(LocalContext.current)
                         .data(post.userImage)
                         .crossfade(true)
                         .build(),
-                    contentDescription = null,
+                    contentDescription = "Profile picture of ${post.username}",
                     modifier = Modifier
                         .size(40.dp)
-                        .clip(CircleShape),
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.surfaceVariant),
                     contentScale = ContentScale.Crop
                 )
 
                 Spacer(modifier = Modifier.width(12.dp))
 
-                Column(modifier = Modifier.weight(1f)) {
+                // Username and Timestamp
+                Column(
+                    modifier = Modifier.weight(1f)
+                ) {
                     Text(
                         text = post.username,
-                        fontWeight = FontWeight.Bold,
-                        style = MaterialTheme.typography.bodyLarge
+                        fontWeight = FontWeight.SemiBold,
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                     Text(
-                        text = "2 hours ago",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        style = MaterialTheme.typography.bodySmall
+                        text = formatTimestamp(post.timestamp),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
 
-                IconButton(onClick = { /* More options */ }) {
+                // More Options Button
+                IconButton(
+                    onClick = { onMoreClick(post.id) }
+                ) {
                     Icon(
                         imageVector = Icons.Default.MoreVert,
-                        contentDescription = "More",
+                        contentDescription = "More options",
                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
 
             // Post Image
-            Box(
+            AsyncImage(
+                model = ImageRequest.Builder(LocalContext.current)
+                    .data(post.postImage)
+                    .crossfade(true)
+                    .build(),
+                contentDescription = "Post image",
                 modifier = Modifier
                     .fillMaxWidth()
                     .aspectRatio(1f)
                     .clickable { onPostClick(post.id) }
-            ) {
-                AsyncImage(
-                    model = ImageRequest.Builder(LocalContext.current)
-                        .data(post.postImage)
-                        .crossfade(true)
-                        .build(),
-                    contentDescription = null,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .clip(RoundedCornerShape(bottomStart = 12.dp, bottomEnd = 12.dp)),
-                    contentScale = ContentScale.Crop
-                )
-            }
+                    .background(MaterialTheme.colorScheme.surfaceVariant),
+                contentScale = ContentScale.Crop
+            )
 
-            // Actions
+            // Action Buttons Row
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(12.dp),
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row {
-                    IconButton(onClick = { onLikeClick(post.id) }) {
+                // Left Actions (Like, Comment, Share)
+                Row(
+                    horizontalArrangement = Arrangement.Start
+                ) {
+                    // Like Button
+                    IconButton(
+                        onClick = {
+                            isLiked = !isLiked
+                            onLikeClick(post.id)
+                        }
+                    ) {
                         Icon(
-                            imageVector = if (post.isLiked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                            contentDescription = "Like",
-                            tint = if (post.isLiked) Color.Red else MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(24.dp)
+                            imageVector = if (isLiked) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                            contentDescription = if (isLiked) "Unlike" else "Like",
+                            tint = likeColor,
+                            modifier = Modifier.size(26.dp)
                         )
                     }
 
-                    IconButton(onClick = { /* Comment */ }) {
+                    // Comment Button
+                    IconButton(onClick = { onCommentClick(post.id) }) {
                         Icon(
                             imageVector = Icons.Default.Comment,
                             contentDescription = "Comment",
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(24.dp)
+                            modifier = Modifier.size(26.dp)
                         )
                     }
 
-                    IconButton(onClick = { /* Share */ }) {
+                    // Share Button
+                    IconButton(onClick = { onShareClick(post.id) }) {
                         Icon(
                             imageVector = Icons.Default.Share,
                             contentDescription = "Share",
@@ -154,57 +191,91 @@ fun PostItem(
                     }
                 }
 
-                IconButton(onClick = { /* Save */ }) {
+                // Right Action (Save/Bookmark)
+                IconButton(onClick = { onSaveClick(post.id) }) {
                     Icon(
-                        imageVector = Icons.Default.Bookmark,
+                        imageVector = Icons.Default.BookmarkBorder,
                         contentDescription = "Save",
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(24.dp)
+                        modifier = Modifier.size(26.dp)
                     )
                 }
             }
 
-            // Likes count
-            Row(
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
-            ) {
+            // Likes Count
+            if (post.likes > 0) {
                 Text(
-                    text = "❤️ ${post.likes} likes",
-                    fontWeight = FontWeight.Medium,
-                    style = MaterialTheme.typography.bodyLarge
+                    text = formatLikes(post.likes),
+                    fontWeight = FontWeight.SemiBold,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
                 )
             }
 
-            // Description
-            Row(
-                modifier = Modifier.padding(horizontal = 12.dp)
-            ) {
+            // Description with Username
+            if (post.description.isNotEmpty()) {
                 Text(
-                    text = post.username,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.weight(1f)
+                    text = buildAnnotatedString {
+                        withStyle(style = SpanStyle(fontWeight = FontWeight.SemiBold)) {
+                            append(post.username)
+                        }
+                        append(" ")
+                        append(post.description)
+                    },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
                 )
             }
-            Text(
-                text = post.description,
-                modifier = Modifier.padding(horizontal = 12.dp),
-                style = MaterialTheme.typography.bodyMedium
-            )
 
-            // Comments preview
+            // View Comments Button
+            if (post.commentsCount > 0) {
+                TextButton(
+                    onClick = { onCommentClick(post.id) },
+                    modifier = Modifier.padding(horizontal = 8.dp),
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                ) {
+                    Text(
+                        text = "View all ${post.commentsCount} comments",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
             Spacer(modifier = Modifier.height(8.dp))
-            TextButton(
-                onClick = { /* View comments */ },
-                modifier = Modifier.padding(horizontal = 12.dp)
-            ) {
-                Text(
-                    text = "View all ${post.commentsCount} comments",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    style = MaterialTheme.typography.bodyMedium
-                )
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
         }
+    }
+}
+
+/**
+ * Format timestamp to relative time string
+ */
+private fun formatTimestamp(timestamp: Long): String {
+    val now = System.currentTimeMillis()
+    val diff = now - timestamp
+
+    return when {
+        diff < 60_000 -> "Just now"
+        diff < 3600_000 -> "${diff / 60_000}m ago"
+        diff < 86400_000 -> "${diff / 3600_000}h ago"
+        diff < 604800_000 -> "${diff / 86400_000}d ago"
+        diff < 2592000_000 -> "${diff / 604800_000}w ago"
+        else -> "${diff / 2592000_000}mo ago"
+    }
+}
+
+/**
+ * Format likes count with proper pluralization
+ */
+private fun formatLikes(count: Int): String {
+    return when {
+        count == 1 -> "$count like"
+        count < 1000 -> "$count likes"
+        count < 1_000_000 -> "${String.format("%.1f", count / 1000.0)}K likes"
+        else -> "${String.format("%.1f", count / 1_000_000.0)}M likes"
     }
 }

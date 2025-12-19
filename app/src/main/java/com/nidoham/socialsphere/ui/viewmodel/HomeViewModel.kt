@@ -3,6 +3,8 @@ package com.nidoham.socialsphere.ui.viewmodel
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.nidoham.social.posts.PostExtractor
+import com.nidoham.social.posts.PostWithAuthor
 import com.nidoham.social.stories.StoryExtractor
 import com.nidoham.social.stories.StoryWithAuthor
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -12,22 +14,28 @@ import kotlinx.coroutines.launch
 
 /**
  * ViewModel for the Home screen
- * Manages story data with pagination, loading states, and user interactions
+ * Manages story and post data with pagination, loading states, and user interactions
  */
 class HomeViewModel(
     application: Application
 ) : AndroidViewModel(application) {
 
-    // Context-এর পরিবর্তে Application Context ব্যবহার করা নিরাপদ (Memory Leak রোধ করতে)
     private val storyExtractor = StoryExtractor(application.applicationContext)
+    private val postExtractor = PostExtractor(application.applicationContext)
 
-    // UI State
+    // Stories State
     private val _uiState = MutableStateFlow<HomeUiState>(HomeUiState.Loading)
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
 
-    // Stories list
     private val _stories = MutableStateFlow<List<StoryWithAuthor>>(emptyList())
     val stories: StateFlow<List<StoryWithAuthor>> = _stories.asStateFlow()
+
+    // Posts State
+    private val _postsUiState = MutableStateFlow<PostsUiState>(PostsUiState.Loading)
+    val postsUiState: StateFlow<PostsUiState> = _postsUiState.asStateFlow()
+
+    private val _posts = MutableStateFlow<List<PostWithAuthor>>(emptyList())
+    val posts: StateFlow<List<PostWithAuthor>> = _posts.asStateFlow()
 
     // Loading states
     private val _isLoading = MutableStateFlow(false)
@@ -36,36 +44,46 @@ class HomeViewModel(
     private val _isLoadingMore = MutableStateFlow(false)
     val isLoadingMore: StateFlow<Boolean> = _isLoadingMore.asStateFlow()
 
+    private val _isLoadingMorePosts = MutableStateFlow(false)
+    val isLoadingMorePosts: StateFlow<Boolean> = _isLoadingMorePosts.asStateFlow()
+
     // Error message
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
 
-    // Pagination state
-    private var currentPage = 0
-    private var hasMorePages = true
-    private var isLoadingPage = false
+    // Pagination state for stories
+    private var currentStoryPage = 0
+    private var hasMoreStoryPages = true
+    private var isLoadingStoryPage = false
+
+    // Pagination state for posts
+    private var currentPostPage = 0
+    private var hasMorePostPages = true
+    private var isLoadingPostPage = false
 
     init {
         loadStories()
+        loadPosts()
     }
+
+    // ============= STORIES METHODS =============
 
     /**
      * Load first page of stories
      */
     fun loadStories() {
-        if (isLoadingPage) return
+        if (isLoadingStoryPage) return
 
         viewModelScope.launch {
-            isLoadingPage = true
+            isLoadingStoryPage = true
             _isLoading.value = true
             _uiState.value = HomeUiState.Loading
 
-            // Reset pagination
-            currentPage = 0
-            hasMorePages = true
+            currentStoryPage = 0
+            hasMoreStoryPages = true
             storyExtractor.resetPagination()
 
-            val result = storyExtractor.fetchStoriesPage(currentPage)
+            val result = storyExtractor.fetchStoriesPage(currentStoryPage)
 
             result.onSuccess { storiesList ->
                 _stories.value = storiesList
@@ -74,50 +92,46 @@ class HomeViewModel(
                 } else {
                     HomeUiState.Success(storiesList)
                 }
-                _errorMessage.value = null
-                hasMorePages = storiesList.size >= 20
+                hasMoreStoryPages = storiesList.size >= 20
             }.onFailure { exception ->
                 val errorMsg = exception.message ?: "Failed to load stories"
                 _errorMessage.value = errorMsg
                 _uiState.value = HomeUiState.Error(errorMsg)
-                hasMorePages = false
+                hasMoreStoryPages = false
             }
 
             _isLoading.value = false
-            isLoadingPage = false
+            isLoadingStoryPage = false
         }
     }
 
     /**
-     * Load next page of stories (Infinite Scroll)
+     * Load next page of stories
      */
     fun loadMoreStories() {
-        if (isLoadingPage || !hasMorePages || _isLoadingMore.value) return
+        if (isLoadingStoryPage || !hasMoreStoryPages || _isLoadingMore.value) return
 
         viewModelScope.launch {
-            isLoadingPage = true
+            isLoadingStoryPage = true
             _isLoadingMore.value = true
 
-            val nextPage = currentPage + 1
+            val nextPage = currentStoryPage + 1
             val result = storyExtractor.fetchStoriesPage(nextPage)
 
             result.onSuccess { newStories ->
                 if (newStories.isNotEmpty()) {
-                    currentPage = nextPage
+                    currentStoryPage = nextPage
                     _stories.value = _stories.value + newStories
-
-                    // Update Success state with updated list
                     _uiState.value = HomeUiState.Success(_stories.value)
                 }
-                hasMorePages = newStories.size >= 20
-                _errorMessage.value = null
+                hasMoreStoryPages = newStories.size >= 20
             }.onFailure { exception ->
-                _errorMessage.value = "Failed to load more: ${exception.message}"
-                hasMorePages = false
+                _errorMessage.value = "Failed to load more stories: ${exception.message}"
+                hasMoreStoryPages = false
             }
 
             _isLoadingMore.value = false
-            isLoadingPage = false
+            isLoadingStoryPage = false
         }
     }
 
@@ -131,78 +145,161 @@ class HomeViewModel(
         }
     }
 
-    fun loadStoriesByAuthor(authorId: String) {
+    // ============= POSTS METHODS =============
+
+    /**
+     * Load first page of posts
+     */
+    fun loadPosts() {
+        if (isLoadingPostPage) return
+
         viewModelScope.launch {
-            _isLoading.value = true
-            _uiState.value = HomeUiState.Loading
+            isLoadingPostPage = true
+            _postsUiState.value = PostsUiState.Loading
 
-            val result = storyExtractor.fetchStoriesByAuthor(authorId)
+            currentPostPage = 0
+            hasMorePostPages = true
+            postExtractor.resetPagination()
 
-            result.onSuccess { storiesList ->
-                _stories.value = storiesList
-                _uiState.value = if (storiesList.isEmpty()) HomeUiState.Empty else HomeUiState.Success(storiesList)
-                _errorMessage.value = null
-            }.onFailure { exception ->
-                val errorMsg = exception.message ?: "Failed to load author stories"
-                _errorMessage.value = errorMsg
-                _uiState.value = HomeUiState.Error(errorMsg)
-            }
-            _isLoading.value = false
-        }
-    }
+            val result = postExtractor.fetchPostsPage(currentPostPage)
 
-    fun loadStoryWithAuthor(storyId: String) {
-        viewModelScope.launch {
-            val result = storyExtractor.fetchStoryWithAuthor(storyId)
-            result.onSuccess { storyWithAuthor ->
-                val currentList = _stories.value.toMutableList()
-                val index = currentList.indexOfFirst { it.storyId == storyId }
-
-                if (index >= 0) {
-                    currentList[index] = storyWithAuthor
+            result.onSuccess { postsList ->
+                _posts.value = postsList
+                _postsUiState.value = if (postsList.isEmpty()) {
+                    PostsUiState.Empty
                 } else {
-                    currentList.add(storyWithAuthor)
+                    PostsUiState.Success(postsList)
                 }
-                _stories.value = currentList
-                _uiState.value = HomeUiState.Success(currentList)
+                hasMorePostPages = postsList.size >= 20
+            }.onFailure { exception ->
+                val errorMsg = exception.message ?: "Failed to load posts"
+                _errorMessage.value = errorMsg
+                _postsUiState.value = PostsUiState.Error(errorMsg)
+                hasMorePostPages = false
             }
+
+            isLoadingPostPage = false
         }
     }
 
-    fun deleteStory(storyId: String) {
+    /**
+     * Load next page of posts (Infinite Scroll)
+     */
+    fun loadMorePosts() {
+        if (isLoadingPostPage || !hasMorePostPages || _isLoadingMorePosts.value) return
+
         viewModelScope.launch {
-            storyExtractor.removeStory(storyId).onSuccess {
-                val updatedList = _stories.value.filterNot { it.storyId == storyId }
-                _stories.value = updatedList
-                _uiState.value = if (updatedList.isEmpty()) HomeUiState.Empty else HomeUiState.Success(updatedList)
+            isLoadingPostPage = true
+            _isLoadingMorePosts.value = true
+
+            val nextPage = currentPostPage + 1
+            val result = postExtractor.fetchPostsPage(nextPage)
+
+            result.onSuccess { newPosts ->
+                if (newPosts.isNotEmpty()) {
+                    currentPostPage = nextPage
+                    _posts.value = _posts.value + newPosts
+                    _postsUiState.value = PostsUiState.Success(_posts.value)
+                }
+                hasMorePostPages = newPosts.size >= 20
+            }.onFailure { exception ->
+                _errorMessage.value = "Failed to load more posts: ${exception.message}"
+                hasMorePostPages = false
+            }
+
+            _isLoadingMorePosts.value = false
+            isLoadingPostPage = false
+        }
+    }
+
+    fun refreshPosts() {
+        loadPosts()
+    }
+
+    /**
+     * Refresh both stories and posts
+     */
+    fun refreshAll() {
+        loadStories()
+        loadPosts()
+    }
+
+    /**
+     * Increment post view count
+     */
+    fun incrementPostViewCount(postId: String) {
+        viewModelScope.launch {
+            postExtractor.incrementViewCount(postId)
+        }
+    }
+
+    /**
+     * Handle post like/unlike
+     */
+    fun togglePostLike(postId: String) {
+        viewModelScope.launch {
+            // TODO: Implement like/unlike logic with your backend
+            // For now, just increment view count
+            incrementPostViewCount(postId)
+        }
+    }
+
+    /**
+     * Delete a post
+     */
+    fun deletePost(postId: String) {
+        viewModelScope.launch {
+            postExtractor.removePost(postId).onSuccess {
+                val updatedList = _posts.value.filterNot { it.post.id == postId }
+                _posts.value = updatedList
+                _postsUiState.value = if (updatedList.isEmpty()) {
+                    PostsUiState.Empty
+                } else {
+                    PostsUiState.Success(updatedList)
+                }
             }.onFailure {
                 _errorMessage.value = "Delete failed: ${it.message}"
             }
         }
     }
 
-    fun clearCacheAndReload() {
-        viewModelScope.launch {
-            storyExtractor.clearCache()
-            loadStories()
-        }
-    }
+    // ============= UTILITY METHODS =============
 
     fun clearError() {
         _errorMessage.value = null
     }
 
-    fun hasMoreStories(): Boolean = hasMorePages
-    fun getCurrentPage(): Int = currentPage
+    fun clearCacheAndReload() {
+        viewModelScope.launch {
+            storyExtractor.clearCache()
+            postExtractor.clearCache()
+            loadStories()
+            loadPosts()
+        }
+    }
+
+    fun hasMoreStories(): Boolean = hasMoreStoryPages
+    fun hasMorePosts(): Boolean = hasMorePostPages
+    fun getCurrentStoryPage(): Int = currentStoryPage
+    fun getCurrentPostPage(): Int = currentPostPage
 }
 
 /**
- * UI State sealed class for Home screen
- * 'data object' is preferred in modern Kotlin for singleton states
+ * UI State for Stories
  */
 sealed class HomeUiState {
     data object Loading : HomeUiState()
     data class Success(val stories: List<StoryWithAuthor>) : HomeUiState()
     data class Error(val message: String) : HomeUiState()
     data object Empty : HomeUiState()
+}
+
+/**
+ * UI State for Posts
+ */
+sealed class PostsUiState {
+    data object Loading : PostsUiState()
+    data class Success(val posts: List<PostWithAuthor>) : PostsUiState()
+    data class Error(val message: String) : PostsUiState()
+    data object Empty : PostsUiState()
 }

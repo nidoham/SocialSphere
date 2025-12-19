@@ -2,21 +2,20 @@
 accompanistSwiperefresh = "0.36.0"
 agp = "8.13.2"
 hiltAndroid = "2.57.2"
-kotlin = "2.2.21"
-composeBom = "2025.12.00"
+kotlin = "2.2.0"
+composeBom = "2025.12.01"
 kotlinxSerialization = "1.9.0"
 kotlinxDatetime = "0.7.1"
 kotlinxCoroutines = "1.10.2"
 coreKtx = "1.17.0"
 coreSplashscreen = "1.2.0"
-appcompat = "1.7.1"
 lifecycleViewmodelCompose = "2.10.0"
 material = "1.13.0"
-activityCompose = "1.12.1"
+activityCompose = "1.12.2"
 lifecycleRuntimeKtx = "2.10.0"
 firebaseBom = "34.7.0"
-credentials = "1.6.0-beta03"
-credentialsPlayServicesAuth = "1.6.0-beta03"
+credentials = "1.6.0-rc01"
+credentialsPlayServicesAuth = "1.6.0-rc01"
 googleid = "1.1.1"
 okhttp = "5.3.2"
 playServicesAuth = "21.4.0"
@@ -25,12 +24,16 @@ espressoCore = "3.7.0"
 googleGmsGoogleServices = "4.4.4"
 newpipeextractor = "fba182c"
 coilCompose = "2.7.0"
+roomVersion = "2.6.1"
 
 [libraries]
 # BOMs - Centralized Version Management
 accompanist-swiperefresh = { module = "com.google.accompanist:accompanist-swiperefresh", version.ref = "accompanistSwiperefresh" }
 accompanist-systemuicontroller = { module = "com.google.accompanist:accompanist-systemuicontroller", version.ref = "accompanistSwiperefresh" }
 androidx-compose-bom = { group = "androidx.compose", name = "compose-bom", version.ref = "composeBom" }
+androidx-room-compiler = { module = "androidx.room:room-compiler", version.ref = "roomVersion" }
+androidx-room-ktx = { module = "androidx.room:room-ktx", version.ref = "roomVersion" }
+androidx-room-runtime = { module = "androidx.room:room-runtime", version.ref = "roomVersion" }
 firebase-bom = { group = "com.google.firebase", name = "firebase-bom", version.ref = "firebaseBom" }
 
 # Kotlin-First Core Libraries
@@ -44,7 +47,6 @@ kotlinx-coroutines-play-services = { group = "org.jetbrains.kotlinx", name = "ko
 # Core AndroidX (KTX Priority)
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
 androidx-core-splashscreen = { group = "androidx.core", name = "core-splashscreen", version.ref = "coreSplashscreen" }
-androidx-appcompat = { group = "androidx.appcompat", name = "appcompat", version.ref = "appcompat" }
 androidx-lifecycle-runtime-ktx = { group = "androidx.lifecycle", name = "lifecycle-runtime-ktx", version.ref = "lifecycleRuntimeKtx" }
 androidx-lifecycle-viewmodel-compose = { group = "androidx.lifecycle", name = "lifecycle-viewmodel-compose", version.ref = "lifecycleViewmodelCompose" }
 
@@ -87,5 +89,4 @@ androidx-espresso-core = { group = "androidx.test.espresso", name = "espresso-co
 android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
-kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
 google-gms-google-services = { id = "com.google.gms.google-services", version.ref = "googleGmsGoogleServices" }

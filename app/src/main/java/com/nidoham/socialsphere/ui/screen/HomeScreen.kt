@@ -1,65 +1,93 @@
 package com.nidoham.socialsphere.ui.screen
 
-import android.content.Intent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.google.accompanist.swiperefresh.SwipeRefresh
 import com.google.accompanist.swiperefresh.rememberSwipeRefreshState
 import com.google.firebase.auth.FirebaseAuth
-import com.nidoham.socialsphere.CreateStoriesActivity
-import com.nidoham.socialsphere.ui.item.AddStoryItem
+import com.nidoham.socialsphere.ui.item.PostItem
 import com.nidoham.socialsphere.ui.item.StoryItem
 import com.nidoham.socialsphere.ui.item.StoryItemUploader
+import com.nidoham.socialsphere.util.*
 import com.nidoham.socialsphere.ui.theme.DarkBackground
 import com.nidoham.socialsphere.ui.viewmodel.HomeUiState
 import com.nidoham.socialsphere.ui.viewmodel.HomeViewModel
+import com.nidoham.socialsphere.ui.viewmodel.PostsUiState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
-    viewModel: HomeViewModel = viewModel()
+    viewModel: HomeViewModel = viewModel(),
+    onPostClick: (String) -> Unit = {},
+    onCommentClick: (String) -> Unit = {},
+    onProfileClick: (String) -> Unit = {},
+    onStoryClick: (String) -> Unit = {}
 ) {
-    val context = LocalContext.current
-
+    // Collect states
     val uiState by viewModel.uiState.collectAsState()
     val stories by viewModel.stories.collectAsState()
+    val postsUiState by viewModel.postsUiState.collectAsState()
+    val posts by viewModel.posts.collectAsState()
     val errorMessage by viewModel.errorMessage.collectAsState()
+    val isLoadingMorePosts by viewModel.isLoadingMorePosts.collectAsState()
 
-    val currentUserId = FirebaseAuth.getInstance().currentUser?.uid ?: "guest_user"
+    val currentUserId = FirebaseAuth.getInstance().currentUser?.uid ?: ""
 
-    // Use single loading state from uiState
-    val isRefreshing = uiState is HomeUiState.Loading
+    // TODO: Track liked posts from user preferences/database
+    val likedPostIds = remember { mutableSetOf<String>() }
+
+    // Loading state for SwipeRefresh
+    val isRefreshing = uiState is HomeUiState.Loading && postsUiState is PostsUiState.Loading
     val swipeRefreshState = rememberSwipeRefreshState(isRefreshing = isRefreshing)
+
+    // LazyColumn state for pagination
+    val listState = rememberLazyListState()
 
     // Auto-refresh when component loads
     LaunchedEffect(Unit) {
         viewModel.loadStories()
+        viewModel.loadPosts()
+    }
+
+    // Infinite scroll - load more posts when near bottom
+    LaunchedEffect(listState) {
+        snapshotFlow { listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index }
+            .collect { lastVisibleIndex ->
+                val totalItems = listState.layoutInfo.totalItemsCount
+                if (lastVisibleIndex != null && lastVisibleIndex >= totalItems - 5) {
+                    if (viewModel.hasMorePosts() && !isLoadingMorePosts) {
+                        viewModel.loadMorePosts()
+                    }
+                }
+            }
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
         SwipeRefresh(
             state = swipeRefreshState,
-            onRefresh = { viewModel.refreshStories() }
+            onRefresh = { viewModel.refreshAll() }
         ) {
             LazyColumn(
+                state = listState,
                 modifier = Modifier
                     .fillMaxSize()
                     .background(DarkBackground)
             ) {
-                // Stories Section Header
-                item {
+                // ============= STORIES SECTION =============
+                item(key = "stories_header") {
                     Text(
                         text = "Stories",
                         color = Color.White,
@@ -68,11 +96,9 @@ fun HomeScreen(
                     )
                 }
 
-                // Stories Row
-                item {
+                item(key = "stories_list") {
                     when (uiState) {
                         is HomeUiState.Loading -> {
-                            // Show shimmer or simple loading indicator
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -97,18 +123,17 @@ fun HomeScreen(
                                 ),
                                 horizontalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
-                                // Add Story Button (First Item)
-                                item {
+                                // Add Story Button
+                                item(key = "add_story") {
                                     StoryItemUploader.StoryUploadButton()
                                 }
 
-                                // Filter and display active stories with valid IDs
                                 val activeStories = stories.filter { storyWithAuthor ->
                                     storyWithAuthor.isActive() && storyWithAuthor.storyId.isNotEmpty()
                                 }
 
                                 if (activeStories.isEmpty() && uiState is HomeUiState.Success) {
-                                    item {
+                                    item(key = "no_stories") {
                                         Box(
                                             modifier = Modifier
                                                 .width(200.dp)
@@ -132,7 +157,7 @@ fun HomeScreen(
                                             onClick = { clickedStory ->
                                                 if (clickedStory.storyId.isNotEmpty()) {
                                                     viewModel.incrementViewCount(clickedStory.storyId)
-                                                    // TODO: Navigate to story viewer
+                                                    onStoryClick(clickedStory.storyId)
                                                 }
                                             }
                                         )
@@ -150,8 +175,7 @@ fun HomeScreen(
                                 contentAlignment = Alignment.Center
                             ) {
                                 Column(
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    verticalArrangement = Arrangement.Center
+                                    horizontalAlignment = Alignment.CenterHorizontally
                                 ) {
                                     Text(
                                         text = "Failed to load stories",
@@ -169,7 +193,7 @@ fun HomeScreen(
                 }
 
                 // Divider
-                item {
+                item(key = "divider") {
                     Divider(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -179,8 +203,8 @@ fun HomeScreen(
                     )
                 }
 
-                // Posts Section (placeholder)
-                item {
+                // ============= POSTS SECTION =============
+                item(key = "posts_header") {
                     Text(
                         text = "Posts",
                         color = Color.White,
@@ -189,24 +213,164 @@ fun HomeScreen(
                     )
                 }
 
-                item {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(200.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "No posts yet",
-                            color = Color.Gray,
-                            fontSize = 14.sp
-                        )
+                when (postsUiState) {
+                    is PostsUiState.Loading -> {
+                        item(key = "posts_loading") {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(200.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                CircularProgressIndicator(
+                                    color = Color(0xFF4CAF50),
+                                    modifier = Modifier.size(40.dp)
+                                )
+                            }
+                        }
                     }
+
+                    is PostsUiState.Empty -> {
+                        item(key = "posts_empty") {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(200.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    Text(
+                                        text = "No posts yet",
+                                        color = Color.Gray,
+                                        fontSize = 16.sp
+                                    )
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Text(
+                                        text = "Be the first to share something!",
+                                        color = Color.Gray,
+                                        fontSize = 14.sp
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    is PostsUiState.Success -> {
+                        items(
+                            items = posts,
+                            key = { it.post.id }
+                        ) { postWithAuthor ->
+                            val isLiked = likedPostIds.contains(postWithAuthor.post.id)
+
+                            PostItem(
+                                post = postWithAuthor.toUiPost(isLiked),
+                                modifier = Modifier.padding(horizontal = 12.dp),
+                                onPostClick = { postId ->
+                                    viewModel.incrementPostViewCount(postId)
+                                    onPostClick(postId)
+                                },
+                                onLikeClick = { postId ->
+                                    // Toggle like state
+                                    if (likedPostIds.contains(postId)) {
+                                        likedPostIds.remove(postId)
+                                    } else {
+                                        likedPostIds.add(postId)
+                                    }
+                                    viewModel.togglePostLike(postId)
+                                },
+                                onCommentClick = { postId ->
+                                    onCommentClick(postId)
+                                },
+                                onShareClick = { postId ->
+                                    // TODO: Implement share functionality
+                                },
+                                onSaveClick = { postId ->
+                                    // TODO: Implement save functionality
+                                },
+                                onProfileClick = { username ->
+                                    onProfileClick(username)
+                                },
+                                onMoreClick = { postId ->
+                                    // TODO: Show more options menu
+                                }
+                            )
+                        }
+
+                        // Loading more indicator
+                        if (isLoadingMorePosts) {
+                            item(key = "posts_loading_more") {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(16.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    CircularProgressIndicator(
+                                        color = Color(0xFF4CAF50),
+                                        modifier = Modifier.size(32.dp)
+                                    )
+                                }
+                            }
+                        }
+
+                        // End of feed indicator
+                        if (!viewModel.hasMorePosts() && posts.isNotEmpty()) {
+                            item(key = "posts_end") {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 24.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = "You're all caught up! 🎉",
+                                        color = Color.Gray,
+                                        fontSize = 14.sp
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    is PostsUiState.Error -> {
+                        item(key = "posts_error") {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(200.dp)
+                                    .padding(16.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    SelectionContainer {
+                                        Text(
+                                            text = "Failed to load posts",
+                                            color = Color.Red,
+                                            fontSize = 14.sp,
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    TextButton(onClick = { viewModel.refreshPosts() }) {
+                                        Text("Retry", color = Color(0xFF0095F6))
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Bottom padding for navigation bar
+                item(key = "bottom_padding") {
+                    Spacer(modifier = Modifier.height(80.dp))
                 }
             }
         }
 
-        // Error Snackbar at bottom
+        // Error Snackbar
         errorMessage?.let { error ->
             Snackbar(
                 modifier = Modifier
@@ -220,7 +384,9 @@ fun HomeScreen(
                 containerColor = Color(0xFFFF5252),
                 contentColor = Color.White
             ) {
-                Text(error)
+                SelectionContainer {
+                    Text(error)
+                }
             }
         }
     }
