@@ -1,5 +1,6 @@
 package com.nidoham.socialsphere
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -18,7 +19,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.nidoham.socialsphere.ui.screen.*
@@ -48,6 +52,7 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun MainScreen() {
     var selectedTab by remember { mutableIntStateOf(0) }
+    val context = LocalContext.current
 
     Scaffold(
         containerColor = DarkBackground,
@@ -55,7 +60,15 @@ fun MainScreen() {
         bottomBar = {
             AppBottomNavigationBar(
                 selectedTab = selectedTab,
-                onTabSelected = { selectedTab = it }
+                onTabSelected = { index ->
+                    if (index == 2) {
+                        // Open CreateActivity when middle button is clicked
+                        val intent = Intent(context, CreatePostActivity::class.java)
+                        context.startActivity(intent)
+                    } else {
+                        selectedTab = index
+                    }
+                }
             )
         }
     ) { paddingValues ->
@@ -68,8 +81,7 @@ fun MainScreen() {
             when (selectedTab) {
                 0 -> HomeScreen()
                 1 -> ChatScreen()
-                2 -> FriendsScreen()
-                3 -> StreamScreen()
+                3 -> FriendsScreen()
                 4 -> MarketsScreen()
             }
         }
@@ -89,13 +101,14 @@ fun AppTopBar() {
                     painter = painterResource(id = R.drawable.app_icon),
                     contentDescription = "App Icon",
                     modifier = Modifier
-                        .size(40.dp)
+                        .size(45.dp)
                         .clip(RoundedCornerShape(10.dp))
                 )
                 Spacer(modifier = Modifier.width(10.dp))
                 Text(
-                    text = "SocialSphere",
+                    text = stringResource(id = R.string.app_name),
                     style = MaterialTheme.typography.titleLarge,
+                    fontStyle = FontStyle.Italic,
                     color = TextPrimary
                 )
             }
@@ -107,7 +120,7 @@ fun AppTopBar() {
                     imageVector = Icons.Outlined.Search,
                     contentDescription = "Search",
                     tint = IconActive,
-                    modifier = Modifier.size(26.dp)
+                    modifier = Modifier.size(28.dp)
                 )
             }
 
@@ -120,7 +133,7 @@ fun AppTopBar() {
                         imageVector = Icons.Outlined.Notifications,
                         contentDescription = "Notifications",
                         tint = IconActive,
-                        modifier = Modifier.size(26.dp)
+                        modifier = Modifier.size(28.dp)
                     )
                 }
                 // Notification Badge
@@ -157,8 +170,8 @@ fun AppBottomNavigationBar(
     val items = listOf(
         NavigationItem("Home", Icons.Outlined.Home, Icons.Filled.Home),
         NavigationItem("Chats", Icons.Outlined.Chat, Icons.Filled.Chat),
+        NavigationItem("Create", Icons.Outlined.Create, Icons.Filled.Create),
         NavigationItem("Friends", Icons.Outlined.People, Icons.Filled.People),
-        NavigationItem("Streams", Icons.Outlined.VideoLibrary, Icons.Filled.VideoLibrary),
         NavigationItem("Markets", Icons.Outlined.Store, Icons.Filled.Store)
     )
 

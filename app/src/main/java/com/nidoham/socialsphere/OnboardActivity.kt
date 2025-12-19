@@ -670,10 +670,9 @@ fun OnboardingScreen(
                                 ) {
                                     // Fallback Icon for Google if resource missing
                                     Icon(
-                                        imageVector = Icons.Default.AccountCircle,
+                                        painter = painterResource(id = R.drawable.ic_google),
                                         contentDescription = "Google",
-                                        modifier = Modifier.size(22.dp),
-                                        tint = Color.White
+                                        modifier = Modifier.size(22.dp)
                                     )
                                     Spacer(modifier = Modifier.width(12.dp))
                                     Text(
