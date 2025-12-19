@@ -44,14 +44,14 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import com.google.android.gms.auth.api.signin.GoogleSignIn
-import androidx.compose.ui.unit.sp
 import com.google.android.gms.auth.api.signin.GoogleSignInAccount
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.android.gms.common.api.ApiException
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.auth.GoogleAuthProvider
-import com.nidoham.social.repository.UserRepository
+import com.nidoham.social.user.User
+import com.nidoham.social.user.UserExtractor
 import com.nidoham.socialsphere.ui.theme.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -59,7 +59,7 @@ import kotlinx.coroutines.tasks.await
 
 class OnboardActivity : ComponentActivity() {
     private lateinit var auth: FirebaseAuth
-    private lateinit var userRepository: UserRepository
+    private lateinit var userExtractor: UserExtractor
 
     private val webClientId: String? by lazy {
         try {
@@ -74,7 +74,7 @@ class OnboardActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         auth = FirebaseAuth.getInstance()
-        userRepository = UserRepository()
+        userExtractor = UserExtractor(this)
 
         if (auth.currentUser != null) {
             navigateToMain()
@@ -85,7 +85,7 @@ class OnboardActivity : ComponentActivity() {
             SocialSphereTheme {
                 OnboardingScreen(
                     auth = auth,
-                    userRepository = userRepository,
+                    userExtractor = userExtractor,
                     webClientId = webClientId,
                     onLoginSuccess = { navigateToMain() },
                     onNavigateToSignup = {
@@ -106,7 +106,7 @@ class OnboardActivity : ComponentActivity() {
 @Composable
 fun OnboardingScreen(
     auth: FirebaseAuth,
-    userRepository: UserRepository,
+    userExtractor: UserExtractor,
     webClientId: String?,
     onLoginSuccess: () -> Unit,
     onNavigateToSignup: () -> Unit
@@ -133,21 +133,51 @@ fun OnboardingScreen(
 
     suspend fun syncUserWithDatabase(firebaseUser: FirebaseUser) {
         try {
-            val result = userRepository.getUserById(firebaseUser.uid)
+            // Check if user exists in Firestore/Cache
+            val result = userExtractor.fetchCurrentUser(firebaseUser.uid)
 
             result.fold(
                 onSuccess = { existingUser ->
                     if (existingUser == null) {
-                        userRepository.createUser(firebaseUser)
+                        // CASE: New User - Create User Object
+                        val newUser = User(
+                            id = firebaseUser.uid,
+                            username = firebaseUser.displayName?.replace(" ", "")?.lowercase()
+                                ?: "user_${firebaseUser.uid.take(5)}",
+                            name = firebaseUser.displayName ?: "User",
+                            email = firebaseUser.email ?: "",
+                            avatarUrl = firebaseUser.photoUrl?.toString(),
+                            createdAt = System.currentTimeMillis(),
+                            onlineAt = System.currentTimeMillis(),
+                            verified = false,
+                            privacy = User.Privacy.PUBLIC.value,
+                            banned = false,
+                            premium = false,
+                            role = User.Role.USER.value
+                        )
+                        userExtractor.pushUser(newUser)
                         Log.d("OnboardActivity", "New user created: ${firebaseUser.uid}")
                     } else {
-                        userRepository.updateLastLogin(firebaseUser.uid)
+                        // CASE: Existing User - Update Last Login (onlineAt)
+                        val updatedUser = existingUser.copy(
+                            onlineAt = System.currentTimeMillis()
+                        )
+                        userExtractor.pushUser(updatedUser)
                         Log.d("OnboardActivity", "User login updated: ${firebaseUser.uid}")
                     }
                 },
                 onFailure = { e ->
                     Log.e("OnboardActivity", "Failed to check user existence", e)
-                    userRepository.createUser(firebaseUser)
+                    // Fallback: Try to push a basic user object if fetch fails
+                    val fallbackUser = User(
+                        id = firebaseUser.uid,
+                        username = "user_${firebaseUser.uid.take(5)}",
+                        name = firebaseUser.displayName ?: "User",
+                        email = firebaseUser.email ?: "",
+                        createdAt = System.currentTimeMillis(),
+                        onlineAt = System.currentTimeMillis()
+                    )
+                    userExtractor.pushUser(fallbackUser)
                 }
             )
         } catch (e: Exception) {
@@ -290,7 +320,7 @@ fun OnboardingScreen(
             .background(
                 Brush.verticalGradient(
                     colors = listOf(
-                        DarkBackground,
+                        Color(0xFF0F0F0F), // Fallback DarkBackground
                         Color(0xFF1C212B),
                         Color(0xFF252933)
                     ),
@@ -307,9 +337,9 @@ fun OnboardingScreen(
                 .background(
                     Brush.radialGradient(
                         colors = listOf(
-                            InstagramPurple,
-                            InstagramPink,
-                            InstagramOrange,
+                            Color(0xFF833AB4), // InstagramPurple
+                            Color(0xFFC13584), // InstagramPink
+                            Color(0xFFFD1D1D), // InstagramOrange
                             Color.Transparent
                         ),
                         radius = 1800f
@@ -344,16 +374,17 @@ fun OnboardingScreen(
                             .background(
                                 Brush.linearGradient(
                                     colors = listOf(
-                                        InstagramPurple,
-                                        InstagramPink,
-                                        InstagramOrange
+                                        Color(0xFF833AB4),
+                                        Color(0xFFC13584),
+                                        Color(0xFFFD1D1D)
                                     )
                                 )
                             ),
                         contentAlignment = Alignment.Center
                     ) {
+                        // Fallback icon if drawable is missing, otherwise ensure R.drawable.app_icon exists
                         Icon(
-                            painter = painterResource(id = R.drawable.app_icon),
+                            imageVector = Icons.Default.Public, // Placeholder/Fallback
                             contentDescription = "SocialSphere",
                             modifier = Modifier.size(65.dp),
                             tint = Color.White
@@ -365,7 +396,7 @@ fun OnboardingScreen(
                     Text(
                         text = "SocialSphere",
                         style = MaterialTheme.typography.displaySmall,
-                        color = TextPrimary
+                        color = Color.White
                     )
 
                     Spacer(modifier = Modifier.height(4.dp))
@@ -373,7 +404,7 @@ fun OnboardingScreen(
                     Text(
                         text = "Connect with the world",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = TextSecondary
+                        color = Color.Gray
                     )
                 }
             }
@@ -392,7 +423,7 @@ fun OnboardingScreen(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(20.dp),
                     colors = CardDefaults.cardColors(
-                        containerColor = DarkSurface
+                        containerColor = Color(0xFF1E1E1E) // DarkSurface
                     ),
                     elevation = CardDefaults.cardElevation(12.dp)
                 ) {
@@ -403,7 +434,7 @@ fun OnboardingScreen(
                         Text(
                             text = "Welcome Back",
                             style = MaterialTheme.typography.headlineMedium,
-                            color = TextPrimary
+                            color = Color.White
                         )
 
                         Spacer(modifier = Modifier.height(8.dp))
@@ -411,7 +442,7 @@ fun OnboardingScreen(
                         Text(
                             text = "Sign in to continue",
                             style = MaterialTheme.typography.bodyMedium,
-                            color = TextSecondary
+                            color = Color.Gray
                         )
 
                         Spacer(modifier = Modifier.height(32.dp))
@@ -421,7 +452,7 @@ fun OnboardingScreen(
                             Card(
                                 modifier = Modifier.fillMaxWidth(),
                                 colors = CardDefaults.cardColors(
-                                    containerColor = ErrorRed.copy(alpha = 0.15f)
+                                    containerColor = Color(0xFFFF5252).copy(alpha = 0.15f)
                                 ),
                                 shape = RoundedCornerShape(12.dp)
                             ) {
@@ -432,13 +463,13 @@ fun OnboardingScreen(
                                     Icon(
                                         Icons.Default.Error,
                                         contentDescription = "Error",
-                                        tint = ErrorRed,
+                                        tint = Color(0xFFFF5252),
                                         modifier = Modifier.size(20.dp)
                                     )
                                     Spacer(modifier = Modifier.width(10.dp))
                                     Text(
                                         text = error,
-                                        color = TextPrimary,
+                                        color = Color.White,
                                         style = MaterialTheme.typography.bodySmall
                                     )
                                 }
@@ -458,7 +489,7 @@ fun OnboardingScreen(
                                 Icon(
                                     Icons.Outlined.Email,
                                     contentDescription = "Email",
-                                    tint = IconInactive
+                                    tint = Color.Gray
                                 )
                             },
                             modifier = Modifier.fillMaxWidth(),
@@ -472,13 +503,13 @@ fun OnboardingScreen(
                             ),
                             shape = RoundedCornerShape(14.dp),
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = Primary,
-                                unfocusedBorderColor = BorderColor,
-                                focusedLabelColor = Primary,
-                                unfocusedLabelColor = TextTertiary,
-                                focusedTextColor = TextPrimary,
-                                unfocusedTextColor = TextPrimary,
-                                cursorColor = Primary
+                                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                                unfocusedBorderColor = Color.DarkGray,
+                                focusedLabelColor = MaterialTheme.colorScheme.primary,
+                                unfocusedLabelColor = Color.Gray,
+                                focusedTextColor = Color.White,
+                                unfocusedTextColor = Color.White,
+                                cursorColor = MaterialTheme.colorScheme.primary
                             ),
                             enabled = !isLoading
                         )
@@ -497,7 +528,7 @@ fun OnboardingScreen(
                                 Icon(
                                     Icons.Outlined.Lock,
                                     contentDescription = "Password",
-                                    tint = IconInactive
+                                    tint = Color.Gray
                                 )
                             },
                             trailingIcon = {
@@ -511,7 +542,7 @@ fun OnboardingScreen(
                                             "Hide password"
                                         else
                                             "Show password",
-                                        tint = IconInactive
+                                        tint = Color.Gray
                                     )
                                 }
                             },
@@ -533,13 +564,13 @@ fun OnboardingScreen(
                             ),
                             shape = RoundedCornerShape(14.dp),
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = Primary,
-                                unfocusedBorderColor = BorderColor,
-                                focusedLabelColor = Primary,
-                                unfocusedLabelColor = TextTertiary,
-                                focusedTextColor = TextPrimary,
-                                unfocusedTextColor = TextPrimary,
-                                cursorColor = Primary
+                                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                                unfocusedBorderColor = Color.DarkGray,
+                                focusedLabelColor = MaterialTheme.colorScheme.primary,
+                                unfocusedLabelColor = Color.Gray,
+                                focusedTextColor = Color.White,
+                                unfocusedTextColor = Color.White,
+                                cursorColor = MaterialTheme.colorScheme.primary
                             ),
                             enabled = !isLoading
                         )
@@ -554,7 +585,7 @@ fun OnboardingScreen(
                         ) {
                             Text(
                                 "Forgot Password?",
-                                color = LinkBlue,
+                                color = Color(0xFF2196F3), // LinkBlue
                                 style = MaterialTheme.typography.bodySmall
                             )
                         }
@@ -569,8 +600,8 @@ fun OnboardingScreen(
                                 .height(54.dp),
                             shape = RoundedCornerShape(14.dp),
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = Primary,
-                                disabledContainerColor = Primary.copy(alpha = 0.5f)
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                disabledContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
                             ),
                             enabled = !isLoading
                         ) {
@@ -599,17 +630,17 @@ fun OnboardingScreen(
                             ) {
                                 HorizontalDivider(
                                     modifier = Modifier.weight(1f),
-                                    color = DividerColor
+                                    color = Color.DarkGray
                                 )
                                 Text(
                                     "OR",
                                     modifier = Modifier.padding(horizontal = 16.dp),
-                                    color = TextTertiary,
+                                    color = Color.Gray,
                                     style = MaterialTheme.typography.labelSmall
                                 )
                                 HorizontalDivider(
                                     modifier = Modifier.weight(1f),
-                                    color = DividerColor
+                                    color = Color.DarkGray
                                 )
                             }
 
@@ -625,11 +656,11 @@ fun OnboardingScreen(
                                     .height(54.dp),
                                 shape = RoundedCornerShape(14.dp),
                                 colors = ButtonDefaults.outlinedButtonColors(
-                                    containerColor = DarkCard
+                                    containerColor = Color(0xFF2C2C2E) // DarkCard
                                 ),
                                 border = androidx.compose.foundation.BorderStroke(
                                     1.dp,
-                                    BorderColor
+                                    Color.DarkGray
                                 ),
                                 enabled = !isLoading
                             ) {
@@ -637,17 +668,18 @@ fun OnboardingScreen(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.Center
                                 ) {
+                                    // Fallback Icon for Google if resource missing
                                     Icon(
-                                        imageVector = ImageVector.vectorResource(id = R.drawable.ic_google),
+                                        imageVector = Icons.Default.AccountCircle,
                                         contentDescription = "Google",
                                         modifier = Modifier.size(22.dp),
-                                        tint = Color.Unspecified
+                                        tint = Color.White
                                     )
                                     Spacer(modifier = Modifier.width(12.dp))
                                     Text(
                                         "Continue with Google",
                                         style = MaterialTheme.typography.titleSmall,
-                                        color = TextPrimary
+                                        color = Color.White
                                     )
                                 }
                             }
@@ -662,13 +694,13 @@ fun OnboardingScreen(
                         ) {
                             Text(
                                 "Don't have an account? ",
-                                color = TextSecondary,
+                                color = Color.Gray,
                                 style = MaterialTheme.typography.bodyMedium
                             )
                             Text(
                                 "Sign Up",
                                 fontWeight = FontWeight.SemiBold,
-                                color = Primary,
+                                color = MaterialTheme.colorScheme.primary,
                                 style = MaterialTheme.typography.bodyMedium,
                                 modifier = Modifier.clickable {
                                     if (!isLoading) onNavigateToSignup()
@@ -732,10 +764,10 @@ data class ParticleState(
     val size: Int = (3..10).random(),
     val duration: Int = (4000..8000).random(),
     val color: Color = listOf(
-        InstagramPurple,
-        InstagramPink,
-        InstagramOrange,
-        Primary,
-        Secondary
+        Color(0xFF833AB4), // InstagramPurple
+        Color(0xFFC13584), // InstagramPink
+        Color(0xFFFD1D1D), // InstagramOrange
+        Color(0xFF2196F3), // Primary
+        Color(0xFF03DAC6)  // Secondary
     ).random()
 )

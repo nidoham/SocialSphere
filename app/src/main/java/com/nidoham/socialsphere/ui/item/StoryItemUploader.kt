@@ -38,8 +38,7 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.google.firebase.auth.FirebaseAuth
-import com.nidoham.social.model.Story
-import com.nidoham.social.model.StoryVisibility
+import com.nidoham.social.stories.Story
 import com.nidoham.socialsphere.ui.viewmodel.StoryUploadViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -96,6 +95,7 @@ object StoryItemUploader {
                     delay(1500)
                     showSuccess = false
                     selectedImageUri = null
+                    // Pass the created Story object back
                     onStoryCreated((uploadState as StoryUploadViewModel.UploadState.Success).story)
                     uploadViewModel.resetUploadState()
                 }
@@ -376,10 +376,10 @@ object StoryItemUploader {
     private fun EnhancedStoryDialog(
         imageUri: Uri,
         onDismiss: () -> Unit,
-        onConfirm: (caption: String, visibility: StoryVisibility, duration: Int) -> Unit
+        onConfirm: (caption: String, visibility: Story.Visibility, duration: Int) -> Unit
     ) {
         var caption by remember { mutableStateOf("") }
-        var selectedVisibility by remember { mutableStateOf(StoryVisibility.PUBLIC) }
+        var selectedVisibility by remember { mutableStateOf(Story.Visibility.PUBLIC) }
         var selectedDuration by remember { mutableStateOf(5) }
         var showVisibilityMenu by remember { mutableStateOf(false) }
         var showDurationMenu by remember { mutableStateOf(false) }
@@ -561,7 +561,7 @@ object StoryItemUploader {
                                     .fillMaxWidth(0.85f)
                                     .background(Color(0xFF2C2C2E))
                             ) {
-                                StoryVisibility.entries.forEach { visibility ->
+                                Story.Visibility.entries.forEach { visibility ->
                                     DropdownMenuItem(
                                         text = {
                                             Row(
@@ -872,30 +872,33 @@ object StoryItemUploader {
         }
     }
 
-    private fun getVisibilityIcon(visibility: StoryVisibility): ImageVector {
+    private fun getVisibilityIcon(visibility: Story.Visibility): ImageVector {
         return when (visibility) {
-            StoryVisibility.PUBLIC -> Icons.Default.Public
-            StoryVisibility.FRIENDS -> Icons.Default.Group
-            StoryVisibility.CUSTOM -> Icons.Default.PersonAdd
-            StoryVisibility.PRIVATE -> Icons.Default.Lock
+            Story.Visibility.PUBLIC -> Icons.Default.Public
+            Story.Visibility.FRIENDS -> Icons.Default.Group
+            Story.Visibility.CLOSE_FRIENDS -> Icons.Default.Star
+            Story.Visibility.CUSTOM -> Icons.Default.PersonAdd
+            Story.Visibility.PRIVATE -> Icons.Default.Lock
         }
     }
 
-    private fun getVisibilityTitle(visibility: StoryVisibility): String {
+    private fun getVisibilityTitle(visibility: Story.Visibility): String {
         return when (visibility) {
-            StoryVisibility.PUBLIC -> "Public"
-            StoryVisibility.FRIENDS -> "Friends"
-            StoryVisibility.CUSTOM -> "Custom"
-            StoryVisibility.PRIVATE -> "Only Me"
+            Story.Visibility.PUBLIC -> "Public"
+            Story.Visibility.FRIENDS -> "Friends"
+            Story.Visibility.CLOSE_FRIENDS -> "Close Friends"
+            Story.Visibility.CUSTOM -> "Custom"
+            Story.Visibility.PRIVATE -> "Only Me"
         }
     }
 
-    private fun getVisibilityDescription(visibility: StoryVisibility): String {
+    private fun getVisibilityDescription(visibility: Story.Visibility): String {
         return when (visibility) {
-            StoryVisibility.PUBLIC -> "Anyone can view"
-            StoryVisibility.FRIENDS -> "Only your friends"
-            StoryVisibility.CUSTOM -> "Selected people"
-            StoryVisibility.PRIVATE -> "Only visible to you"
+            Story.Visibility.PUBLIC -> "Anyone can view"
+            Story.Visibility.FRIENDS -> "Only your friends"
+            Story.Visibility.CLOSE_FRIENDS -> "Select close friends"
+            Story.Visibility.CUSTOM -> "Selected people"
+            Story.Visibility.PRIVATE -> "Only visible to you"
         }
     }
 

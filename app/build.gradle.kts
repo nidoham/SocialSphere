@@ -4,6 +4,7 @@ plugins {
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.google.gms.google.services)
     id("kotlin-parcelize")
+    id("kotlin-kapt")
 }
 
 android {
@@ -111,7 +112,10 @@ dependencies {
         exclude(group = "com.google.code.findbugs", module = "jsr305")
     }
 
-    implementation("com.github.nidoham:Social:v1.0.9")
+    implementation("com.github.nidoham:Social:v1.0.10")
+
+    implementation(libs.hilt.android)
+    kapt(libs.hilt.compiler)
 
     // Testing
     testImplementation(libs.junit)

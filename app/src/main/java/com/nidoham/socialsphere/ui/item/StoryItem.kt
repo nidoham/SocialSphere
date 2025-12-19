@@ -1,12 +1,14 @@
+// StoryItem.kt - Fixed version with StoryVisibility enum and null-safe avatar handling
+
 package com.nidoham.socialsphere.ui.item
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -22,89 +24,85 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
-import com.nidoham.social.model.Story
+import com.nidoham.social.stories.StoryWithAuthor
 import com.nidoham.socialsphere.ui.theme.*
 
-/**
- * Instagram-style Story item component with circular shape.
- */
+// <CHANGE> Added missing StoryVisibility enum
+enum class StoryVisibility {
+    PUBLIC,
+    FRIENDS,
+    CUSTOM,
+    PRIVATE
+}
+
+/* ----------------------------- STORY ITEM ----------------------------- */
+
 @Composable
 fun StoryItem(
-    story: Story,
-    isFirstItem: Boolean,
+    story: StoryWithAuthor,
     modifier: Modifier = Modifier,
-    onClick: (Story) -> Unit = {}
+    onClick: (StoryWithAuthor) -> Unit
 ) {
     Column(
         modifier = modifier
-            .width(100.dp)
+            .width(88.dp)
             .clickable { onClick(story) },
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Box(
-            modifier = Modifier.size(100.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            // Gradient ring border (only for active stories, not first item)
+        Box(contentAlignment = Alignment.Center) {
+
+            // Gradient Ring
             Box(
                 modifier = Modifier
-                    .fillMaxSize()
+                    .size(72.dp)
                     .clip(CircleShape)
                     .background(
-                        brush = when {
-                            isFirstItem -> Brush.linearGradient(
-                                colors = listOf(BorderColor, BorderColor)
-                            )
-                            story.isActive() -> Brush.linearGradient(
-                                colors = listOf(
+                        brush = if (story.isActive()) {
+                            Brush.linearGradient(
+                                listOf(
                                     StoryGradientStart,
                                     StoryGradientMiddle,
                                     StoryGradientEnd
                                 )
                             )
-                            else -> Brush.linearGradient(
-                                colors = listOf(BorderColor, BorderColor)
-                            )
+                        } else {
+                            Brush.linearGradient(listOf(BorderColor, BorderColor))
                         }
                     )
             )
 
-            // Dark background gap (creates the ring effect)
+            // Inner gap
             Box(
                 modifier = Modifier
-                    .size(66.dp)
+                    .size(64.dp)
                     .clip(CircleShape)
                     .background(DarkBackground)
             )
 
-            AsyncImage(
-                model = story.getPrimaryMediaUrl(),
-                contentDescription = if (isFirstItem) "Add Story" else "View Story",
-                modifier = Modifier
-                    .size(95.dp)
-                    .clip(CircleShape)
-                    .background(DarkCard),
-                contentScale = ContentScale.Crop
-            )
-
-            if (isFirstItem) {
+            // <CHANGE> Handle nullable authorAvatar with fallback placeholder
+            if (!story.authorAvatar.isNullOrEmpty()) {
+                AsyncImage(
+                    model = story.authorAvatar,
+                    contentDescription = "Story Avatar",
+                    modifier = Modifier
+                        .size(60.dp)
+                        .clip(CircleShape),
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                // Fallback when avatar is null or empty
                 Box(
                     modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .offset(x = (-2).dp, y = (-2).dp)
-                        .size(24.dp)
+                        .size(60.dp)
                         .clip(CircleShape)
-                        .background(DarkBackground)
-                        .padding(2.dp)
-                        .clip(CircleShape)
-                        .background(Primary),
+                        .background(DarkCard),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = Icons.Default.Add,
-                        contentDescription = null,
-                        tint = Color.White,
-                        modifier = Modifier.size(14.dp)
+                        imageVector = Icons.Default.Person,
+                        contentDescription = "Default Avatar",
+                        tint = TextPrimary,
+                        modifier = Modifier.size(32.dp)
                     )
                 }
             }
@@ -112,54 +110,102 @@ fun StoryItem(
 
         Spacer(modifier = Modifier.height(6.dp))
 
-        // Username label
         Text(
-            text = if (isFirstItem) "Your Story" else story.authorId,
+            text = story.authorUsername,
             style = MaterialTheme.typography.labelSmall,
             color = TextPrimary,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             textAlign = TextAlign.Center,
-            modifier = Modifier.fillMaxWidth(),
             fontSize = 11.sp
         )
     }
 }
 
-/**
- * A horizontal row helper to display stories.
- */
+/* ----------------------------- ADD STORY ----------------------------- */
+
+@Composable
+fun AddStoryItem(
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    Column(
+        modifier = modifier
+            .width(88.dp)
+            .clickable { onClick() },
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Box(contentAlignment = Alignment.BottomEnd) {
+
+            Box(
+                modifier = Modifier
+                    .size(72.dp)
+                    .clip(CircleShape)
+                    .background(BorderColor),
+                contentAlignment = Alignment.Center
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(60.dp)
+                        .clip(CircleShape)
+                        .background(DarkCard)
+                )
+            }
+
+            Box(
+                modifier = Modifier
+                    .offset(x = (-4).dp, y = (-4).dp)
+                    .size(22.dp)
+                    .clip(CircleShape)
+                    .background(Primary),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Add,
+                    contentDescription = "Add Story",
+                    tint = Color.White,
+                    modifier = Modifier.size(14.dp)
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(6.dp))
+
+        Text(
+            text = "Your Story",
+            style = MaterialTheme.typography.labelSmall,
+            color = TextPrimary,
+            fontSize = 11.sp,
+            textAlign = TextAlign.Center
+        )
+    }
+}
+
+/* ----------------------------- ROW ----------------------------- */
+
 @Composable
 fun StoryItemRow(
-    stories: List<Story>,
-    onStoryClick: (Story) -> Unit = {},
-    onAddStoryClick: () -> Unit = {},
-    modifier: Modifier = Modifier
+    stories: List<StoryWithAuthor>,
+    modifier: Modifier = Modifier,
+    onStoryClick: (StoryWithAuthor) -> Unit,
+    onAddStoryClick: () -> Unit
 ) {
     Row(
         modifier = modifier
             .fillMaxWidth()
             .padding(vertical = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        // Add Story Button
-        StoryItem(
-            story = Story(
-                id = "add_story",
-                authorId = "current_user",
-                caption = ""
-            ),
-            isFirstItem = true,
-            onClick = { onAddStoryClick() }
-        )
+        AddStoryItem(onClick = onAddStoryClick)
 
-        // List of active stories
-        stories.filter { it.isActive() }.forEach { story ->
-            StoryItem(
-                story = story,
-                isFirstItem = false,
-                onClick = onStoryClick
-            )
-        }
+        stories
+            .filter { it.isActive() }
+            .distinctBy { it.authorId }
+            .forEach { story ->
+                StoryItem(
+                    story = story,
+                    onClick = onStoryClick
+                )
+            }
     }
 }

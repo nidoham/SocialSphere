@@ -22,7 +22,15 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.nidoham.socialsphere.ui.screen.*
-import com.nidoham.socialsphere.ui.theme.*
+import com.nidoham.socialsphere.ui.theme.DarkBackground
+import com.nidoham.socialsphere.ui.theme.IconActive
+import com.nidoham.socialsphere.ui.theme.IconInactive
+import com.nidoham.socialsphere.ui.theme.NotificationDot
+import com.nidoham.socialsphere.ui.theme.Primary
+import com.nidoham.socialsphere.ui.theme.PrimaryContainer
+import com.nidoham.socialsphere.ui.theme.SocialSphereTheme
+import com.nidoham.socialsphere.ui.theme.TextPrimary
+import com.nidoham.socialsphere.ui.theme.TextTertiary
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {

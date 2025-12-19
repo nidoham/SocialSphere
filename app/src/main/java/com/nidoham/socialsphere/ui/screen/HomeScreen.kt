@@ -1,6 +1,5 @@
 package com.nidoham.socialsphere.ui.screen
 
-import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -11,15 +10,12 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.google.accompanist.swiperefresh.SwipeRefresh
 import com.google.accompanist.swiperefresh.rememberSwipeRefreshState
 import com.google.firebase.auth.FirebaseAuth
-import com.nidoham.social.model.Story
-import com.nidoham.socialsphere.ui.item.PostInputPanel
 import com.nidoham.socialsphere.ui.item.StoryItem
 import com.nidoham.socialsphere.ui.item.StoryItemUploader
 import com.nidoham.socialsphere.ui.theme.DarkBackground
@@ -54,7 +50,6 @@ fun HomeScreen(
                     .fillMaxSize()
                     .background(DarkBackground)
             ) {
-
                 // Stories Section
                 item {
                     Column(
@@ -63,15 +58,6 @@ fun HomeScreen(
                             .background(DarkBackground)
                             .padding(top = 8.dp, bottom = 12.dp)
                     ) {
-                        Text(
-                            text = "Stories",
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White,
-                            modifier = Modifier.padding(start = 16.dp, bottom = 8.dp)
-                        )
-
-                        // Stories Row
                         when (uiState) {
                             is HomeUiState.Loading -> {
                                 Box(
@@ -96,7 +82,7 @@ fun HomeScreen(
                                     ),
                                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
-                                    // Add Story Item (First Item)
+                                    // Add Story Button (First Item)
                                     item {
                                         StoryItemUploader.StoryUploadButton(
                                             userId = currentUserId,
@@ -106,9 +92,9 @@ fun HomeScreen(
                                         )
                                     }
 
-                                    // Filter and display active stories
-                                    val activeStories = stories.filter { story ->
-                                        story.isActive() && story.id != null
+                                    // Filter and display active stories with valid IDs
+                                    val activeStories = stories.filter { storyWithAuthor ->
+                                        storyWithAuthor.isActive() && storyWithAuthor.storyId.isNotEmpty()
                                     }
 
                                     if (activeStories.isEmpty() && uiState is HomeUiState.Success) {
@@ -127,13 +113,15 @@ fun HomeScreen(
                                             }
                                         }
                                     } else {
-                                        items(activeStories) { story ->
+                                        items(
+                                            items = activeStories,
+                                            key = { it.storyId }
+                                        ) { storyWithAuthor ->
                                             StoryItem(
-                                                story = story,
-                                                isFirstItem = false,
+                                                story = storyWithAuthor,
                                                 onClick = { clickedStory ->
-                                                    clickedStory.id?.let { storyId ->
-                                                        viewModel.incrementViewCount(storyId)
+                                                    if (clickedStory.storyId.isNotEmpty()) {
+                                                        viewModel.incrementViewCount(clickedStory.storyId)
                                                     }
                                                 }
                                             )
@@ -169,38 +157,6 @@ fun HomeScreen(
                         }
                     }
                 }
-
-                // Post Input Panel - NEW
-                item {
-                    PostInputPanel(
-                        onPostClick = { text, imageUris ->
-                            // TODO: Implement post creation logic
-                            // You'll need to add a method in your ViewModel to handle post creation
-                            // viewModel.createPost(text, imageUris)
-                            println("Post created with text: $text and ${imageUris.size} images")
-                        },
-                        onPhotoClick = {
-                            // Handle photo click (already handled internally by the component)
-                        },
-                        onVideoClick = {
-                            // TODO: Implement video selection
-                        },
-                        onFeelingClick = {
-                            // TODO: Implement feeling/activity selection
-                        },
-                        onMoreClick = {
-                            // TODO: Implement more options menu
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(DarkBackground)
-                    )
-                }
-
-                // TODO: Add posts list here below stories
-                // items(posts) { post ->
-                //     PostItem(post)
-                // }
             }
         }
 
