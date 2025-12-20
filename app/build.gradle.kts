@@ -98,6 +98,7 @@ dependencies {
     implementation(libs.kotlinx.coroutines.play.services)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.kotlinx.datetime)
+    implementation(libs.androidx.compose.animation.core)
 
     val roomVersion = "2.6.1"
     implementation(libs.androidx.room.runtime)
@@ -111,15 +112,13 @@ dependencies {
     implementation(libs.play.services.auth)
     implementation(libs.okhttp)
 
-
-
     // NewPipe (Conflict resolved)
     implementation(libs.newpipeextractor) {
         exclude(group = "com.google.protobuf", module = "protobuf-javalite")
         exclude(group = "com.google.code.findbugs", module = "jsr305")
     }
 
-    implementation("com.github.nidoham:Social:v1.0.10")
+    implementation("com.github.nidoham:Social:v1.1.3")
 
     implementation(libs.hilt.android)
     kapt(libs.hilt.compiler)

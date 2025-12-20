@@ -25,6 +25,7 @@ googleGmsGoogleServices = "4.4.4"
 newpipeextractor = "fba182c"
 coilCompose = "2.7.0"
 roomVersion = "2.6.1"
+animationCore = "1.10.0"
 
 [libraries]
 # BOMs - Centralized Version Management
@@ -84,6 +85,7 @@ newpipeextractor = { group = "com.github.libre-tube", name = "NewPipeExtractor",
 junit = { group = "junit", name = "junit", version = "4.13.2" }
 androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitVersion" }
 androidx-espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espressoCore" }
+androidx-compose-animation-core = { group = "androidx.compose.animation", name = "animation-core", version.ref = "animationCore" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

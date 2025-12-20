@@ -18,10 +18,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.google.accompanist.swiperefresh.SwipeRefresh
 import com.google.accompanist.swiperefresh.rememberSwipeRefreshState
 import com.google.firebase.auth.FirebaseAuth
-import com.nidoham.socialsphere.ui.item.PostItem
-import com.nidoham.socialsphere.ui.item.StoryItem
-import com.nidoham.socialsphere.ui.item.StoryItemUploader
-import com.nidoham.socialsphere.util.*
+import com.nidoham.social.posts.PostWithAuthor
+import com.nidoham.socialsphere.ui.item.*
 import com.nidoham.socialsphere.ui.theme.DarkBackground
 import com.nidoham.socialsphere.ui.viewmodel.HomeUiState
 import com.nidoham.socialsphere.ui.viewmodel.HomeViewModel
@@ -46,8 +44,9 @@ fun HomeScreen(
 
     val currentUserId = FirebaseAuth.getInstance().currentUser?.uid ?: ""
 
-    // TODO: Track liked posts from user preferences/database
-    val likedPostIds = remember { mutableSetOf<String>() }
+    // State for liked and bookmarked posts
+    var likedPosts by remember { mutableStateOf(setOf<String>()) }
+    var bookmarkedPosts by remember { mutableStateOf(setOf<String>()) }
 
     // Loading state for SwipeRefresh
     val isRefreshing = uiState is HomeUiState.Loading && postsUiState is PostsUiState.Loading
@@ -60,6 +59,9 @@ fun HomeScreen(
     LaunchedEffect(Unit) {
         viewModel.loadStories()
         viewModel.loadPosts()
+        // TODO: Load liked and bookmarked posts from backend
+        // likedPosts = viewModel.getLikedPosts()
+        // bookmarkedPosts = viewModel.getBookmarkedPosts()
     }
 
     // Infinite scroll - load more posts when near bottom
@@ -204,15 +206,6 @@ fun HomeScreen(
                 }
 
                 // ============= POSTS SECTION =============
-                item(key = "posts_header") {
-                    Text(
-                        text = "Posts",
-                        color = Color.White,
-                        fontSize = 20.sp,
-                        modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 8.dp)
-                    )
-                }
-
                 when (postsUiState) {
                     is PostsUiState.Loading -> {
                         item(key = "posts_loading") {
@@ -262,23 +255,28 @@ fun HomeScreen(
                             items = posts,
                             key = { it.post.id }
                         ) { postWithAuthor ->
-                            val isLiked = likedPostIds.contains(postWithAuthor.post.id)
+                            // Convert PostWithAuthor to PostData
+                            val postData = postWithAuthor.toPostData()
+                            val isLiked = likedPosts.contains(postData.postId)
+                            val isBookmarked = bookmarkedPosts.contains(postData.postId)
 
-                            PostItem(
-                                post = postWithAuthor.toUiPost(isLiked),
-                                modifier = Modifier.padding(horizontal = 12.dp),
+                            SocialMediaPostItem(
+                                post = postData,
+                                isLiked = isLiked,
+                                isBookmarked = isBookmarked,
+                                modifier = Modifier.padding(horizontal = 8.dp),
                                 onPostClick = { postId ->
                                     viewModel.incrementPostViewCount(postId)
                                     onPostClick(postId)
                                 },
-                                onLikeClick = { postId ->
-                                    // Toggle like state
-                                    if (likedPostIds.contains(postId)) {
-                                        likedPostIds.remove(postId)
+                                onLikeClick = { postId, liked ->
+                                    likedPosts = if (liked) {
+                                        likedPosts + postId
                                     } else {
-                                        likedPostIds.add(postId)
+                                        likedPosts - postId
                                     }
-                                    viewModel.togglePostLike(postId)
+                                    // TODO: Update like status in backend
+                                    // viewModel.toggleLike(postId, liked)
                                 },
                                 onCommentClick = { postId ->
                                     onCommentClick(postId)
@@ -286,14 +284,23 @@ fun HomeScreen(
                                 onShareClick = { postId ->
                                     // TODO: Implement share functionality
                                 },
-                                onSaveClick = { postId ->
-                                    // TODO: Implement save functionality
+                                onBookmarkClick = { postId, bookmarked ->
+                                    bookmarkedPosts = if (bookmarked) {
+                                        bookmarkedPosts + postId
+                                    } else {
+                                        bookmarkedPosts - postId
+                                    }
+                                    // TODO: Update bookmark status in backend
+                                    // viewModel.toggleBookmark(postId, bookmarked)
                                 },
                                 onProfileClick = { username ->
                                     onProfileClick(username)
                                 },
                                 onMoreClick = { postId ->
-                                    // TODO: Show more options menu
+                                    // TODO: Show more options menu (edit, delete, report)
+                                },
+                                onViewAllComments = { postId ->
+                                    onCommentClick(postId)
                                 }
                             )
                         }
@@ -390,4 +397,33 @@ fun HomeScreen(
             }
         }
     }
+}
+
+/**
+ * Extension function to convert PostWithAuthor to PostData
+ */
+private fun PostWithAuthor.toPostData(): PostData {
+    return PostData(
+        postId = this.post.id,
+        authorUsername = this.author.name,
+        authorAvatar = this.author.avatarUrl,
+        isAuthorVerified = this.author.verified,
+        timestamp = this.post.createdAt,
+        privacy = PostPrivacy.PUBLIC, // TODO: Map from your Post model if it has privacy
+        caption = this.post.content,
+        mediaUrls = this.post.mediaUrls.map { url ->
+            MediaItem(
+                url = url,
+                type = if (url.contains(".mp4") || url.contains(".mov")) {
+                    MediaType.VIDEO
+                } else {
+                    MediaType.IMAGE
+                }
+            )
+        },
+        likesCount = 0, // Default to 0 as requested
+        commentsCount = this.post.commentsCount,
+        sharesCount = 0, // Default to 0 as requested
+        topComments = emptyList() // TODO: Load top comments if available
+    )
 }

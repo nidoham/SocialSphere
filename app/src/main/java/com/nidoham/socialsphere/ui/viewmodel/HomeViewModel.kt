@@ -1,6 +1,7 @@
 package com.nidoham.socialsphere.ui.viewmodel
 
 import android.app.Application
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.nidoham.social.posts.PostExtractor
@@ -19,6 +20,11 @@ import kotlinx.coroutines.launch
 class HomeViewModel(
     application: Application
 ) : AndroidViewModel(application) {
+
+    companion object {
+        private const val TAG = "HomeViewModel"
+        private const val PAGE_SIZE = 20
+    }
 
     private val storyExtractor = StoryExtractor(application.applicationContext)
     private val postExtractor = PostExtractor(application.applicationContext)
@@ -62,8 +68,8 @@ class HomeViewModel(
     private var isLoadingPostPage = false
 
     init {
-        loadStories()
-        loadPosts()
+        Log.d(TAG, "HomeViewModel initialized")
+        // Don't auto-load here, let the UI trigger it
     }
 
     // ============= STORIES METHODS =============
@@ -72,36 +78,48 @@ class HomeViewModel(
      * Load first page of stories
      */
     fun loadStories() {
-        if (isLoadingStoryPage) return
+        if (isLoadingStoryPage) {
+            Log.d(TAG, "Already loading stories, skipping...")
+            return
+        }
 
         viewModelScope.launch {
-            isLoadingStoryPage = true
-            _isLoading.value = true
-            _uiState.value = HomeUiState.Loading
+            try {
+                isLoadingStoryPage = true
+                _isLoading.value = true
+                _uiState.value = HomeUiState.Loading
 
-            currentStoryPage = 0
-            hasMoreStoryPages = true
-            storyExtractor.resetPagination()
+                Log.d(TAG, "Loading stories page 0...")
+                currentStoryPage = 0
+                hasMoreStoryPages = true
+                storyExtractor.resetPagination()
 
-            val result = storyExtractor.fetchStoriesPage(currentStoryPage)
+                val result = storyExtractor.fetchStoriesPage(currentStoryPage)
 
-            result.onSuccess { storiesList ->
-                _stories.value = storiesList
-                _uiState.value = if (storiesList.isEmpty()) {
-                    HomeUiState.Empty
-                } else {
-                    HomeUiState.Success(storiesList)
+                result.onSuccess { storiesList ->
+                    Log.d(TAG, "Successfully loaded ${storiesList.size} stories")
+                    _stories.value = storiesList
+                    _uiState.value = if (storiesList.isEmpty()) {
+                        HomeUiState.Empty
+                    } else {
+                        HomeUiState.Success(storiesList)
+                    }
+                    hasMoreStoryPages = storiesList.size >= PAGE_SIZE
+                }.onFailure { exception ->
+                    val errorMsg = exception.message ?: "Failed to load stories"
+                    Log.e(TAG, "Failed to load stories: $errorMsg", exception)
+                    _errorMessage.value = errorMsg
+                    _uiState.value = HomeUiState.Error(errorMsg)
+                    hasMoreStoryPages = false
                 }
-                hasMoreStoryPages = storiesList.size >= 20
-            }.onFailure { exception ->
-                val errorMsg = exception.message ?: "Failed to load stories"
-                _errorMessage.value = errorMsg
-                _uiState.value = HomeUiState.Error(errorMsg)
-                hasMoreStoryPages = false
+            } catch (e: Exception) {
+                Log.e(TAG, "Unexpected error loading stories", e)
+                _errorMessage.value = "Unexpected error: ${e.message}"
+                _uiState.value = HomeUiState.Error(e.message ?: "Unknown error")
+            } finally {
+                _isLoading.value = false
+                isLoadingStoryPage = false
             }
-
-            _isLoading.value = false
-            isLoadingStoryPage = false
         }
     }
 
@@ -109,39 +127,53 @@ class HomeViewModel(
      * Load next page of stories
      */
     fun loadMoreStories() {
-        if (isLoadingStoryPage || !hasMoreStoryPages || _isLoadingMore.value) return
+        if (isLoadingStoryPage || !hasMoreStoryPages || _isLoadingMore.value) {
+            Log.d(TAG, "Skipping load more stories - loading: $isLoadingStoryPage, hasMore: $hasMoreStoryPages")
+            return
+        }
 
         viewModelScope.launch {
-            isLoadingStoryPage = true
-            _isLoadingMore.value = true
+            try {
+                isLoadingStoryPage = true
+                _isLoadingMore.value = true
 
-            val nextPage = currentStoryPage + 1
-            val result = storyExtractor.fetchStoriesPage(nextPage)
+                val nextPage = currentStoryPage + 1
+                Log.d(TAG, "Loading stories page $nextPage...")
+                val result = storyExtractor.fetchStoriesPage(nextPage)
 
-            result.onSuccess { newStories ->
-                if (newStories.isNotEmpty()) {
-                    currentStoryPage = nextPage
-                    _stories.value = _stories.value + newStories
-                    _uiState.value = HomeUiState.Success(_stories.value)
+                result.onSuccess { newStories ->
+                    Log.d(TAG, "Loaded ${newStories.size} more stories")
+                    if (newStories.isNotEmpty()) {
+                        currentStoryPage = nextPage
+                        _stories.value = _stories.value + newStories
+                        _uiState.value = HomeUiState.Success(_stories.value)
+                    }
+                    hasMoreStoryPages = newStories.size >= PAGE_SIZE
+                }.onFailure { exception ->
+                    Log.e(TAG, "Failed to load more stories", exception)
+                    _errorMessage.value = "Failed to load more stories: ${exception.message}"
+                    hasMoreStoryPages = false
                 }
-                hasMoreStoryPages = newStories.size >= 20
-            }.onFailure { exception ->
-                _errorMessage.value = "Failed to load more stories: ${exception.message}"
-                hasMoreStoryPages = false
+            } finally {
+                _isLoadingMore.value = false
+                isLoadingStoryPage = false
             }
-
-            _isLoadingMore.value = false
-            isLoadingStoryPage = false
         }
     }
 
     fun refreshStories() {
+        Log.d(TAG, "Refreshing stories...")
         loadStories()
     }
 
     fun incrementViewCount(storyId: String) {
         viewModelScope.launch {
-            storyExtractor.incrementViewCount(storyId)
+            try {
+                storyExtractor.incrementViewCount(storyId)
+                Log.d(TAG, "Incremented view count for story: $storyId")
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to increment view count", e)
+            }
         }
     }
 
@@ -151,34 +183,46 @@ class HomeViewModel(
      * Load first page of posts
      */
     fun loadPosts() {
-        if (isLoadingPostPage) return
+        if (isLoadingPostPage) {
+            Log.d(TAG, "Already loading posts, skipping...")
+            return
+        }
 
         viewModelScope.launch {
-            isLoadingPostPage = true
-            _postsUiState.value = PostsUiState.Loading
+            try {
+                isLoadingPostPage = true
+                _postsUiState.value = PostsUiState.Loading
 
-            currentPostPage = 0
-            hasMorePostPages = true
-            postExtractor.resetPagination()
+                Log.d(TAG, "Loading posts page 0...")
+                currentPostPage = 0
+                hasMorePostPages = true
+                postExtractor.resetPagination()
 
-            val result = postExtractor.fetchPostsPage(currentPostPage)
+                val result = postExtractor.fetchPostsPage(currentPostPage)
 
-            result.onSuccess { postsList ->
-                _posts.value = postsList
-                _postsUiState.value = if (postsList.isEmpty()) {
-                    PostsUiState.Empty
-                } else {
-                    PostsUiState.Success(postsList)
+                result.onSuccess { postsList ->
+                    Log.d(TAG, "Successfully loaded ${postsList.size} posts")
+                    _posts.value = postsList
+                    _postsUiState.value = if (postsList.isEmpty()) {
+                        PostsUiState.Empty
+                    } else {
+                        PostsUiState.Success(postsList)
+                    }
+                    hasMorePostPages = postsList.size >= PAGE_SIZE
+                }.onFailure { exception ->
+                    val errorMsg = exception.message ?: "Failed to load posts"
+                    Log.e(TAG, "Failed to load posts: $errorMsg", exception)
+                    _errorMessage.value = errorMsg
+                    _postsUiState.value = PostsUiState.Error(errorMsg)
+                    hasMorePostPages = false
                 }
-                hasMorePostPages = postsList.size >= 20
-            }.onFailure { exception ->
-                val errorMsg = exception.message ?: "Failed to load posts"
-                _errorMessage.value = errorMsg
-                _postsUiState.value = PostsUiState.Error(errorMsg)
-                hasMorePostPages = false
+            } catch (e: Exception) {
+                Log.e(TAG, "Unexpected error loading posts", e)
+                _errorMessage.value = "Unexpected error: ${e.message}"
+                _postsUiState.value = PostsUiState.Error(e.message ?: "Unknown error")
+            } finally {
+                isLoadingPostPage = false
             }
-
-            isLoadingPostPage = false
         }
     }
 
@@ -186,33 +230,42 @@ class HomeViewModel(
      * Load next page of posts (Infinite Scroll)
      */
     fun loadMorePosts() {
-        if (isLoadingPostPage || !hasMorePostPages || _isLoadingMorePosts.value) return
+        if (isLoadingPostPage || !hasMorePostPages || _isLoadingMorePosts.value) {
+            Log.d(TAG, "Skipping load more posts - loading: $isLoadingPostPage, hasMore: $hasMorePostPages")
+            return
+        }
 
         viewModelScope.launch {
-            isLoadingPostPage = true
-            _isLoadingMorePosts.value = true
+            try {
+                isLoadingPostPage = true
+                _isLoadingMorePosts.value = true
 
-            val nextPage = currentPostPage + 1
-            val result = postExtractor.fetchPostsPage(nextPage)
+                val nextPage = currentPostPage + 1
+                Log.d(TAG, "Loading posts page $nextPage...")
+                val result = postExtractor.fetchPostsPage(nextPage)
 
-            result.onSuccess { newPosts ->
-                if (newPosts.isNotEmpty()) {
-                    currentPostPage = nextPage
-                    _posts.value = _posts.value + newPosts
-                    _postsUiState.value = PostsUiState.Success(_posts.value)
+                result.onSuccess { newPosts ->
+                    Log.d(TAG, "Loaded ${newPosts.size} more posts")
+                    if (newPosts.isNotEmpty()) {
+                        currentPostPage = nextPage
+                        _posts.value = _posts.value + newPosts
+                        _postsUiState.value = PostsUiState.Success(_posts.value)
+                    }
+                    hasMorePostPages = newPosts.size >= PAGE_SIZE
+                }.onFailure { exception ->
+                    Log.e(TAG, "Failed to load more posts", exception)
+                    _errorMessage.value = "Failed to load more posts: ${exception.message}"
+                    hasMorePostPages = false
                 }
-                hasMorePostPages = newPosts.size >= 20
-            }.onFailure { exception ->
-                _errorMessage.value = "Failed to load more posts: ${exception.message}"
-                hasMorePostPages = false
+            } finally {
+                _isLoadingMorePosts.value = false
+                isLoadingPostPage = false
             }
-
-            _isLoadingMorePosts.value = false
-            isLoadingPostPage = false
         }
     }
 
     fun refreshPosts() {
+        Log.d(TAG, "Refreshing posts...")
         loadPosts()
     }
 
@@ -220,6 +273,7 @@ class HomeViewModel(
      * Refresh both stories and posts
      */
     fun refreshAll() {
+        Log.d(TAG, "Refreshing all content...")
         loadStories()
         loadPosts()
     }
@@ -229,18 +283,12 @@ class HomeViewModel(
      */
     fun incrementPostViewCount(postId: String) {
         viewModelScope.launch {
-            postExtractor.incrementViewCount(postId)
-        }
-    }
-
-    /**
-     * Handle post like/unlike
-     */
-    fun togglePostLike(postId: String) {
-        viewModelScope.launch {
-            // TODO: Implement like/unlike logic with your backend
-            // For now, just increment view count
-            incrementPostViewCount(postId)
+            try {
+                postExtractor.incrementViewCount(postId)
+                Log.d(TAG, "Incremented view count for post: $postId")
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to increment post view count", e)
+            }
         }
     }
 
@@ -249,16 +297,24 @@ class HomeViewModel(
      */
     fun deletePost(postId: String) {
         viewModelScope.launch {
-            postExtractor.removePost(postId).onSuccess {
-                val updatedList = _posts.value.filterNot { it.post.id == postId }
-                _posts.value = updatedList
-                _postsUiState.value = if (updatedList.isEmpty()) {
-                    PostsUiState.Empty
-                } else {
-                    PostsUiState.Success(updatedList)
+            try {
+                Log.d(TAG, "Deleting post: $postId")
+                postExtractor.removePost(postId).onSuccess {
+                    val updatedList = _posts.value.filterNot { it.post.id == postId }
+                    _posts.value = updatedList
+                    _postsUiState.value = if (updatedList.isEmpty()) {
+                        PostsUiState.Empty
+                    } else {
+                        PostsUiState.Success(updatedList)
+                    }
+                    Log.d(TAG, "Successfully deleted post")
+                }.onFailure {
+                    Log.e(TAG, "Failed to delete post", it)
+                    _errorMessage.value = "Delete failed: ${it.message}"
                 }
-            }.onFailure {
-                _errorMessage.value = "Delete failed: ${it.message}"
+            } catch (e: Exception) {
+                Log.e(TAG, "Unexpected error deleting post", e)
+                _errorMessage.value = "Unexpected error: ${e.message}"
             }
         }
     }
@@ -271,10 +327,16 @@ class HomeViewModel(
 
     fun clearCacheAndReload() {
         viewModelScope.launch {
-            storyExtractor.clearCache()
-            postExtractor.clearCache()
-            loadStories()
-            loadPosts()
+            try {
+                Log.d(TAG, "Clearing cache and reloading...")
+                storyExtractor.clearCache()
+                postExtractor.clearCache()
+                loadStories()
+                loadPosts()
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to clear cache", e)
+                _errorMessage.value = "Failed to clear cache: ${e.message}"
+            }
         }
     }
 
@@ -282,6 +344,11 @@ class HomeViewModel(
     fun hasMorePosts(): Boolean = hasMorePostPages
     fun getCurrentStoryPage(): Int = currentStoryPage
     fun getCurrentPostPage(): Int = currentPostPage
+
+    override fun onCleared() {
+        super.onCleared()
+        Log.d(TAG, "HomeViewModel cleared")
+    }
 }
 
 /**
