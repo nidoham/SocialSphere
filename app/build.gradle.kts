@@ -31,6 +31,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            signingConfig = signingConfigs.getByName("debug")
         }
         debug {
             isDebuggable = true
@@ -63,11 +64,9 @@ android {
 }
 
 dependencies {
-    // Core Android (Kotlin-First)
-    implementation(libs.androidx.core.ktx)
-    implementation(libs.androidx.core.splashscreen)
-
-    // Compose BOM (Version management)
+    /**
+     * Jetpack Compose BOM
+     */
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.compose.ui)
@@ -76,54 +75,77 @@ dependencies {
     implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.compose.material.icons.extended)
     implementation(libs.coil.compose)
-
-    // ViewModel & Lifecycle
-    implementation(libs.androidx.lifecycle.viewmodel.compose)
-    implementation(libs.androidx.lifecycle.runtime.ktx)
-
-    // Material (Optional - Material3 দিয়ে replace করুন)
-    implementation(libs.material)
-
-    // Firebase BOM + KTX (Kotlin optimized)
-    implementation(platform(libs.firebase.bom))
-    implementation(libs.firebase.auth.ktx)
-    implementation(libs.firebase.firestore.ktx)
-    implementation(libs.firebase.database.ktx)
-
     implementation(libs.accompanist.swiperefresh)
     implementation(libs.accompanist.systemuicontroller)
 
-    // Kotlin Coroutines & Serialization
+    /**
+     * Kotlin Android Extensions
+     */
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.kotlinx.coroutines.play.services)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.kotlinx.datetime)
     implementation(libs.androidx.compose.animation.core)
+    implementation(libs.androidx.core.ktx)
 
-    val roomVersion = "2.6.1"
-    implementation(libs.androidx.room.runtime)
-    implementation(libs.androidx.room.ktx)
-    kapt(libs.androidx.room.compiler)
-
-    // Auth & Credentials
+    /**
+     * Google Services
+     */
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.auth.ktx)
+    implementation(libs.firebase.firestore.ktx)
+    implementation(libs.firebase.database.ktx)
     implementation(libs.androidx.credentials)
     implementation(libs.androidx.credentials.play.services.auth)
     implementation(libs.googleid)
     implementation(libs.play.services.auth)
-    implementation(libs.okhttp)
 
-    // NewPipe (Conflict resolved)
+    /**
+     * Material 3 Components
+     */
+    implementation(libs.material)
+
+    /**
+     * ViewModel & Lifecycle
+     */
+    implementation(libs.androidx.lifecycle.viewmodel.compose)
+    implementation(libs.androidx.lifecycle.runtime.ktx)
+
+    /**
+     * Room Database
+     */
+    implementation(libs.androidx.room.runtime)
+    implementation(libs.androidx.room.ktx)
+    kapt(libs.androidx.room.compiler)
+
+    /**
+     * Hilt Dependency Injection
+     */
+    implementation(libs.hilt.android)
+    kapt(libs.hilt.compiler)
+
+    /**
+     * Splash Screen
+     */
+    implementation(libs.androidx.core.splashscreen)
+
+    /**
+     * OkHttp & NewPipe Extractor
+     */
+    implementation(libs.okhttp)
     implementation(libs.newpipeextractor) {
         exclude(group = "com.google.protobuf", module = "protobuf-javalite")
         exclude(group = "com.google.code.findbugs", module = "jsr305")
     }
 
-    implementation("com.github.nidoham:Social:v1.1.3")
+    /**
+     * Social Sphere
+     */
+    implementation("com.github.nidoham:Social:v1.1.4")
 
-    implementation(libs.hilt.android)
-    kapt(libs.hilt.compiler)
-
-    // Testing
+    /**
+     * Testing Dependencies
+     */
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
@@ -131,6 +153,8 @@ dependencies {
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     androidTestImplementation(libs.androidx.compose.ui.test.manifest)
 
-    // Debug only
+    /**
+     * Debugging Dependencies
+     */
     debugImplementation(libs.androidx.compose.ui.tooling)
 }
