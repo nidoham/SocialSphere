@@ -27,6 +27,7 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.nidoham.socialsphere.ui.screen.*
+import com.nidoham.socialsphere.ui.screens.StreamScreen
 import com.nidoham.socialsphere.ui.theme.DarkBackground
 import com.nidoham.socialsphere.ui.theme.IconActive
 import com.nidoham.socialsphere.ui.theme.IconInactive
