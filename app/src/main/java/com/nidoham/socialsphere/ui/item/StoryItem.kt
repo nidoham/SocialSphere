@@ -128,7 +128,7 @@ fun StoryItem(
         Spacer(modifier = Modifier.height(8.dp))
 
         Text(
-            text = story.authorUsername,
+            text = story.authorName,
             color = Color.White,
             fontSize = 12.sp,
             fontWeight = FontWeight.Normal,

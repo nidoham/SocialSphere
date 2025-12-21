@@ -4,18 +4,27 @@ import android.app.Application
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.google.firebase.Firebase
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.firestore
 import com.nidoham.social.posts.PostExtractor
 import com.nidoham.social.posts.PostWithAuthor
 import com.nidoham.social.stories.StoryExtractor
 import com.nidoham.social.stories.StoryWithAuthor
+import com.nidoham.socialsphere.extractor.ContentType
+import com.nidoham.socialsphere.extractor.ReactionCounts
+import com.nidoham.socialsphere.extractor.ReactionManager
+import com.nidoham.socialsphere.extractor.ReactionType
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 /**
- * ViewModel for the Home screen
- * Manages story and post data with pagination, loading states, and user interactions
+ * ViewModel for the Home screen.
+ *
+ * Manages story and post data with pagination, loading states, reactions, and user interactions.
+ * Implements proper separation of concerns and follows MVVM architecture.
  */
 class HomeViewModel(
     application: Application
@@ -24,26 +33,51 @@ class HomeViewModel(
     companion object {
         private const val TAG = "HomeViewModel"
         private const val PAGE_SIZE = 20
+        private const val LOAD_MORE_THRESHOLD = 5
     }
 
+    // Dependencies
     private val storyExtractor = StoryExtractor(application.applicationContext)
     private val postExtractor = PostExtractor(application.applicationContext)
+    private val reactionManager = ReactionManager(Firebase.firestore)
+    private val auth = FirebaseAuth.getInstance()
 
-    // Stories State
+    // Current user ID
+    private val currentUserId: String?
+        get() = auth.currentUser?.uid
+
+    // ==================== STORIES STATE ====================
+
     private val _uiState = MutableStateFlow<HomeUiState>(HomeUiState.Loading)
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
 
     private val _stories = MutableStateFlow<List<StoryWithAuthor>>(emptyList())
     val stories: StateFlow<List<StoryWithAuthor>> = _stories.asStateFlow()
 
-    // Posts State
+    // ==================== POSTS STATE ====================
+
     private val _postsUiState = MutableStateFlow<PostsUiState>(PostsUiState.Loading)
     val postsUiState: StateFlow<PostsUiState> = _postsUiState.asStateFlow()
 
     private val _posts = MutableStateFlow<List<PostWithAuthor>>(emptyList())
     val posts: StateFlow<List<PostWithAuthor>> = _posts.asStateFlow()
 
-    // Loading states
+    // ==================== REACTIONS STATE ====================
+
+    private val _postReactions = MutableStateFlow<Map<String, ReactionCounts>>(emptyMap())
+    val postReactions: StateFlow<Map<String, ReactionCounts>> = _postReactions.asStateFlow()
+
+    private val _storyReactions = MutableStateFlow<Map<String, ReactionCounts>>(emptyMap())
+    val storyReactions: StateFlow<Map<String, ReactionCounts>> = _storyReactions.asStateFlow()
+
+    private val _userPostReactions = MutableStateFlow<Map<String, ReactionType>>(emptyMap())
+    val userPostReactions: StateFlow<Map<String, ReactionType>> = _userPostReactions.asStateFlow()
+
+    private val _userStoryReactions = MutableStateFlow<Map<String, ReactionType>>(emptyMap())
+    val userStoryReactions: StateFlow<Map<String, ReactionType>> = _userStoryReactions.asStateFlow()
+
+    // ==================== LOADING STATE ====================
+
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
@@ -53,29 +87,31 @@ class HomeViewModel(
     private val _isLoadingMorePosts = MutableStateFlow(false)
     val isLoadingMorePosts: StateFlow<Boolean> = _isLoadingMorePosts.asStateFlow()
 
-    // Error message
+    // ==================== ERROR STATE ====================
+
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
 
-    // Pagination state for stories
+    // ==================== PAGINATION STATE ====================
+
+    // Story pagination
     private var currentStoryPage = 0
     private var hasMoreStoryPages = true
     private var isLoadingStoryPage = false
 
-    // Pagination state for posts
+    // Post pagination
     private var currentPostPage = 0
     private var hasMorePostPages = true
     private var isLoadingPostPage = false
 
     init {
         Log.d(TAG, "HomeViewModel initialized")
-        // Don't auto-load here, let the UI trigger it
     }
 
-    // ============= STORIES METHODS =============
+    // ==================== STORIES METHODS ====================
 
     /**
-     * Load first page of stories
+     * Load first page of stories with reactions.
      */
     fun loadStories() {
         if (isLoadingStoryPage) {
@@ -105,6 +141,9 @@ class HomeViewModel(
                         HomeUiState.Success(storiesList)
                     }
                     hasMoreStoryPages = storiesList.size >= PAGE_SIZE
+
+                    // Load reactions for stories
+                    loadStoryReactions(storiesList.map { it.story.id })
                 }.onFailure { exception ->
                     val errorMsg = exception.message ?: "Failed to load stories"
                     Log.e(TAG, "Failed to load stories: $errorMsg", exception)
@@ -124,7 +163,7 @@ class HomeViewModel(
     }
 
     /**
-     * Load next page of stories
+     * Load next page of stories with reactions.
      */
     fun loadMoreStories() {
         if (isLoadingStoryPage || !hasMoreStoryPages || _isLoadingMore.value) {
@@ -147,6 +186,9 @@ class HomeViewModel(
                         currentStoryPage = nextPage
                         _stories.value = _stories.value + newStories
                         _uiState.value = HomeUiState.Success(_stories.value)
+
+                        // Load reactions for new stories
+                        loadStoryReactions(newStories.map { it.story.id })
                     }
                     hasMoreStoryPages = newStories.size >= PAGE_SIZE
                 }.onFailure { exception ->
@@ -161,11 +203,17 @@ class HomeViewModel(
         }
     }
 
+    /**
+     * Refresh stories from the beginning.
+     */
     fun refreshStories() {
         Log.d(TAG, "Refreshing stories...")
         loadStories()
     }
 
+    /**
+     * Increment view count for a story.
+     */
     fun incrementViewCount(storyId: String) {
         viewModelScope.launch {
             try {
@@ -177,10 +225,10 @@ class HomeViewModel(
         }
     }
 
-    // ============= POSTS METHODS =============
+    // ==================== POSTS METHODS ====================
 
     /**
-     * Load first page of posts
+     * Load first page of posts with reactions.
      */
     fun loadPosts() {
         if (isLoadingPostPage) {
@@ -209,6 +257,9 @@ class HomeViewModel(
                         PostsUiState.Success(postsList)
                     }
                     hasMorePostPages = postsList.size >= PAGE_SIZE
+
+                    // Load reactions for posts
+                    loadPostReactions(postsList.map { it.post.id })
                 }.onFailure { exception ->
                     val errorMsg = exception.message ?: "Failed to load posts"
                     Log.e(TAG, "Failed to load posts: $errorMsg", exception)
@@ -227,7 +278,7 @@ class HomeViewModel(
     }
 
     /**
-     * Load next page of posts (Infinite Scroll)
+     * Load next page of posts with reactions (Infinite Scroll).
      */
     fun loadMorePosts() {
         if (isLoadingPostPage || !hasMorePostPages || _isLoadingMorePosts.value) {
@@ -250,6 +301,9 @@ class HomeViewModel(
                         currentPostPage = nextPage
                         _posts.value = _posts.value + newPosts
                         _postsUiState.value = PostsUiState.Success(_posts.value)
+
+                        // Load reactions for new posts
+                        loadPostReactions(newPosts.map { it.post.id })
                     }
                     hasMorePostPages = newPosts.size >= PAGE_SIZE
                 }.onFailure { exception ->
@@ -264,13 +318,16 @@ class HomeViewModel(
         }
     }
 
+    /**
+     * Refresh posts from the beginning.
+     */
     fun refreshPosts() {
         Log.d(TAG, "Refreshing posts...")
         loadPosts()
     }
 
     /**
-     * Refresh both stories and posts
+     * Refresh both stories and posts.
      */
     fun refreshAll() {
         Log.d(TAG, "Refreshing all content...")
@@ -279,7 +336,7 @@ class HomeViewModel(
     }
 
     /**
-     * Increment post view count
+     * Increment post view count.
      */
     fun incrementPostViewCount(postId: String) {
         viewModelScope.launch {
@@ -293,7 +350,7 @@ class HomeViewModel(
     }
 
     /**
-     * Delete a post
+     * Delete a post and update UI state.
      */
     fun deletePost(postId: String) {
         viewModelScope.launch {
@@ -307,6 +364,11 @@ class HomeViewModel(
                     } else {
                         PostsUiState.Success(updatedList)
                     }
+
+                    // Remove reaction data for deleted post
+                    _postReactions.value = _postReactions.value - postId
+                    _userPostReactions.value = _userPostReactions.value - postId
+
                     Log.d(TAG, "Successfully deleted post")
                 }.onFailure {
                     Log.e(TAG, "Failed to delete post", it)
@@ -319,18 +381,220 @@ class HomeViewModel(
         }
     }
 
-    // ============= UTILITY METHODS =============
+    // ==================== REACTIONS METHODS ====================
 
+    /**
+     * Toggle reaction on a post (like or love).
+     * Optimistically updates UI before server response.
+     */
+    fun togglePostReaction(postId: String, reaction: ReactionType) {
+        val userId = currentUserId
+        if (userId == null) {
+            Log.w(TAG, "Cannot toggle reaction: User not logged in")
+            _errorMessage.value = "Please log in to react"
+            return
+        }
+
+        viewModelScope.launch {
+            try {
+                Log.d(TAG, "Toggling ${reaction.value} on post $postId")
+
+                reactionManager.toggleReaction(
+                    contentType = ContentType.Post,
+                    contentId = postId,
+                    userId = userId,
+                    reaction = reaction
+                ).onSuccess { updatedCounts ->
+                    // Update reaction counts
+                    _postReactions.value = _postReactions.value + (postId to updatedCounts)
+
+                    // Update user's reaction state
+                    val currentReaction = _userPostReactions.value[postId]
+                    if (currentReaction == reaction) {
+                        // User removed their reaction
+                        _userPostReactions.value = _userPostReactions.value - postId
+                    } else {
+                        // User added or changed reaction
+                        _userPostReactions.value = _userPostReactions.value + (postId to reaction)
+                    }
+
+                    Log.d(TAG, "Post reaction updated: ${updatedCounts.likes} likes, ${updatedCounts.loves} loves")
+                }.onFailure { exception ->
+                    Log.e(TAG, "Failed to toggle post reaction", exception)
+                    _errorMessage.value = "Failed to react: ${exception.message}"
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Unexpected error toggling post reaction", e)
+                _errorMessage.value = "Unexpected error: ${e.message}"
+            }
+        }
+    }
+
+    /**
+     * Toggle reaction on a story (like or love).
+     */
+    fun toggleStoryReaction(storyId: String, reaction: ReactionType) {
+        val userId = currentUserId
+        if (userId == null) {
+            Log.w(TAG, "Cannot toggle reaction: User not logged in")
+            _errorMessage.value = "Please log in to react"
+            return
+        }
+
+        viewModelScope.launch {
+            try {
+                Log.d(TAG, "Toggling ${reaction.value} on story $storyId")
+
+                reactionManager.toggleReaction(
+                    contentType = ContentType.Story,
+                    contentId = storyId,
+                    userId = userId,
+                    reaction = reaction
+                ).onSuccess { updatedCounts ->
+                    // Update reaction counts
+                    _storyReactions.value = _storyReactions.value + (storyId to updatedCounts)
+
+                    // Update user's reaction state
+                    val currentReaction = _userStoryReactions.value[storyId]
+                    if (currentReaction == reaction) {
+                        // User removed their reaction
+                        _userStoryReactions.value = _userStoryReactions.value - storyId
+                    } else {
+                        // User added or changed reaction
+                        _userStoryReactions.value = _userStoryReactions.value + (storyId to reaction)
+                    }
+
+                    Log.d(TAG, "Story reaction updated: ${updatedCounts.likes} likes, ${updatedCounts.loves} loves")
+                }.onFailure { exception ->
+                    Log.e(TAG, "Failed to toggle story reaction", exception)
+                    _errorMessage.value = "Failed to react: ${exception.message}"
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Unexpected error toggling story reaction", e)
+                _errorMessage.value = "Unexpected error: ${e.message}"
+            }
+        }
+    }
+
+    /**
+     * Load reaction data for multiple posts.
+     * Uses batch operations for efficiency.
+     */
+    private fun loadPostReactions(postIds: List<String>) {
+        val userId = currentUserId ?: return
+
+        viewModelScope.launch {
+            try {
+                // Load reaction counts for all posts
+                reactionManager.getBatchReactionCounts(
+                    contentType = ContentType.Post,
+                    contentIds = postIds
+                ).onSuccess { countsMap ->
+                    _postReactions.value = _postReactions.value + countsMap
+                }
+
+                // Load user's reactions using batch operation
+                reactionManager.getBatchUserReactions(
+                    contentIds = postIds,
+                    userId = userId
+                ).onSuccess { reactionsMap ->
+                    val filtered = reactionsMap.filterValues { it != null }
+                        .mapValues { it.value!! }
+                    _userPostReactions.value = _userPostReactions.value + filtered
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to load post reactions", e)
+            }
+        }
+    }
+
+    /**
+     * Load reaction data for multiple stories.
+     * Uses batch operations for efficiency.
+     */
+    private fun loadStoryReactions(storyIds: List<String>) {
+        val userId = currentUserId ?: return
+
+        viewModelScope.launch {
+            try {
+                // Load reaction counts for all stories
+                reactionManager.getBatchReactionCounts(
+                    contentType = ContentType.Story,
+                    contentIds = storyIds
+                ).onSuccess { countsMap ->
+                    _storyReactions.value = _storyReactions.value + countsMap
+                }
+
+                // Load user's reactions using batch operation
+                reactionManager.getBatchUserReactions(
+                    contentIds = storyIds,
+                    userId = userId
+                ).onSuccess { reactionsMap ->
+                    val filtered = reactionsMap.filterValues { it != null }
+                        .mapValues { it.value!! }
+                    _userStoryReactions.value = _userStoryReactions.value + filtered
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to load story reactions", e)
+            }
+        }
+    }
+
+    // ==================== GETTER METHODS ====================
+
+    /**
+     * Get reaction counts for a specific post.
+     */
+    fun getPostReactionCounts(postId: String): ReactionCounts? {
+        return _postReactions.value[postId]
+    }
+
+    /**
+     * Get reaction counts for a specific story.
+     */
+    fun getStoryReactionCounts(storyId: String): ReactionCounts? {
+        return _storyReactions.value[storyId]
+    }
+
+    /**
+     * Get user's reaction for a specific post.
+     */
+    fun getUserPostReaction(postId: String): ReactionType? {
+        return _userPostReactions.value[postId]
+    }
+
+    /**
+     * Get user's reaction for a specific story.
+     */
+    fun getUserStoryReaction(storyId: String): ReactionType? {
+        return _userStoryReactions.value[storyId]
+    }
+
+    // ==================== UTILITY METHODS ====================
+
+    /**
+     * Clear current error message.
+     */
     fun clearError() {
         _errorMessage.value = null
     }
 
+    /**
+     * Clear all caches and reload data.
+     */
     fun clearCacheAndReload() {
         viewModelScope.launch {
             try {
                 Log.d(TAG, "Clearing cache and reloading...")
                 storyExtractor.clearCache()
                 postExtractor.clearCache()
+
+                // Clear reaction caches
+                _postReactions.value = emptyMap()
+                _storyReactions.value = emptyMap()
+                _userPostReactions.value = emptyMap()
+                _userStoryReactions.value = emptyMap()
+
                 loadStories()
                 loadPosts()
             } catch (e: Exception) {
@@ -340,9 +604,24 @@ class HomeViewModel(
         }
     }
 
+    /**
+     * Check if there are more stories to load.
+     */
     fun hasMoreStories(): Boolean = hasMoreStoryPages
+
+    /**
+     * Check if there are more posts to load.
+     */
     fun hasMorePosts(): Boolean = hasMorePostPages
+
+    /**
+     * Get current story page number.
+     */
     fun getCurrentStoryPage(): Int = currentStoryPage
+
+    /**
+     * Get current post page number.
+     */
     fun getCurrentPostPage(): Int = currentPostPage
 
     override fun onCleared() {
@@ -351,8 +630,10 @@ class HomeViewModel(
     }
 }
 
+// ==================== UI STATE CLASSES ====================
+
 /**
- * UI State for Stories
+ * UI State for Stories section.
  */
 sealed class HomeUiState {
     data object Loading : HomeUiState()
@@ -362,7 +643,7 @@ sealed class HomeUiState {
 }
 
 /**
- * UI State for Posts
+ * UI State for Posts section.
  */
 sealed class PostsUiState {
     data object Loading : PostsUiState()
