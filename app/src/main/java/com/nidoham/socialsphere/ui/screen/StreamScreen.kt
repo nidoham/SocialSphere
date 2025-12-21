@@ -80,9 +80,9 @@ class StreamViewModel : ViewModel() {
                         extractor.fetchPage()
 
                         val initialPage = extractor.initialPage
-                        nextPage = initialPage?.nextPage
+                        nextPage = initialPage.nextPage
 
-                        val newItems = initialPage?.items
+                        val newItems = initialPage.items
                             ?.mapNotNull { item ->
                                 (item as? NewPipeStreamInfoItem)?.let {
                                     StreamInfoItem.from(it)
@@ -98,9 +98,9 @@ class StreamViewModel : ViewModel() {
                         searchExtractor.fetchPage()
 
                         val initialPage = searchExtractor.initialPage
-                        nextPage = initialPage?.nextPage
+                        nextPage = initialPage.nextPage
 
-                        val newItems = initialPage?.items
+                        val newItems = initialPage.items
                             ?.mapNotNull { item ->
                                 (item as? NewPipeStreamInfoItem)?.let {
                                     StreamInfoItem.from(it)
