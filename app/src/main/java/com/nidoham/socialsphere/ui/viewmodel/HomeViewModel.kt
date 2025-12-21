@@ -6,7 +6,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.firebase.Firebase
 import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.firestore.firestore
+import com.google.firebase.database.database
 import com.nidoham.social.posts.PostExtractor
 import com.nidoham.social.posts.PostWithAuthor
 import com.nidoham.social.stories.StoryExtractor
@@ -39,7 +39,7 @@ class HomeViewModel(
     // Dependencies
     private val storyExtractor = StoryExtractor(application.applicationContext)
     private val postExtractor = PostExtractor(application.applicationContext)
-    private val reactionManager = ReactionManager(Firebase.firestore)
+    private val reactionManager = ReactionManager(Firebase.database)
     private val auth = FirebaseAuth.getInstance()
 
     // Current user ID

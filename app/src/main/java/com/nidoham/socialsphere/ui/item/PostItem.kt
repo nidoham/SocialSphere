@@ -40,6 +40,8 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import coil.compose.SubcomposeAsyncImage
 import coil.request.ImageRequest
+import com.nidoham.socialsphere.extractor.ReactionCounts
+import com.nidoham.socialsphere.extractor.ReactionType
 
 /**
  * Enhanced Facebook/Instagram-style social media post component
@@ -50,6 +52,7 @@ import coil.request.ImageRequest
  * - Multi-image carousel with indicators
  * - Video thumbnail support with play icon
  * - Engagement stats with profile avatars
+ * - Like/Love 4reactions support
  * - Comments preview section
  * - Privacy indicator
  * - Enhanced verified badges
@@ -68,11 +71,11 @@ data class PostData(
     val privacy: PostPrivacy = PostPrivacy.PUBLIC,
     val caption: String? = null,
     val mediaUrls: List<MediaItem> = emptyList(),
-    val likesCount: Int = 0,
+    val reactionCounts: ReactionCounts = ReactionCounts.empty(),
     val commentsCount: Int = 0,
     val sharesCount: Int = 0,
     val topComments: List<CommentData> = emptyList(),
-    val likedByUsers: List<UserAvatar> = emptyList() // New: Show who liked
+    val likedByUsers: List<UserAvatar> = emptyList()
 )
 
 data class MediaItem(
@@ -106,18 +109,18 @@ data class CommentData(
 object InstagramColors {
     val storyGradient = Brush.linearGradient(
         colors = listOf(
-            Color(0xFFFCAF45), // Orange
-            Color(0xFFF77737), // Red-Orange
-            Color(0xFFE1306C), // Pink
-            Color(0xFFC13584), // Purple
-            Color(0xFF833AB4)  // Deep Purple
+            Color(0xFFFCAF45),
+            Color(0xFFF77737),
+            Color(0xFFE1306C),
+            Color(0xFFC13584),
+            Color(0xFF833AB4)
         )
     )
 
-    val liveGradient = Brush.linearGradient(
+    val loveGradient = Brush.linearGradient(
         colors = listOf(
-            Color(0xFFD300C5), // Magenta
-            Color(0xFFFF0069), // Hot Pink
+            Color(0xFFFF0844),
+            Color(0xFFFF6B9D)
         )
     )
 
@@ -129,11 +132,11 @@ object InstagramColors {
 @Composable
 fun SocialMediaPostItem(
     post: PostData,
-    isLiked: Boolean = false,
+    userReaction: ReactionType? = null,
     isBookmarked: Boolean = false,
     modifier: Modifier = Modifier,
     onPostClick: (String) -> Unit = {},
-    onLikeClick: (String, Boolean) -> Unit = { _, _ -> },
+    onReactionClick: (String, ReactionType) -> Unit = { _, _ -> },
     onCommentClick: (String) -> Unit = {},
     onShareClick: (String) -> Unit = {},
     onBookmarkClick: (String, Boolean) -> Unit = { _, _ -> },
@@ -144,6 +147,7 @@ fun SocialMediaPostItem(
     val haptic = LocalHapticFeedback.current
     var showFullCaption by remember { mutableStateOf(false) }
     var doubleTapLike by remember { mutableStateOf(false) }
+    var showReactionPicker by remember { mutableStateOf(false) }
 
     val likeScale by animateFloatAsState(
         targetValue = if (doubleTapLike) 1.2f else 1f,
@@ -195,13 +199,13 @@ fun SocialMediaPostItem(
             if (post.mediaUrls.isNotEmpty()) {
                 PostMediaCarousel(
                     mediaItems = post.mediaUrls,
-                    isLiked = isLiked,
+                    userReaction = userReaction,
                     doubleTapLike = doubleTapLike,
                     likeScale = likeScale,
                     onDoubleTap = {
-                        if (!isLiked) {
+                        if (userReaction == null) {
                             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                            onLikeClick(post.postId, true)
+                            onReactionClick(post.postId, ReactionType.Like)
                         }
                         doubleTapLike = true
                     },
@@ -211,7 +215,7 @@ fun SocialMediaPostItem(
 
             // Engagement Stats
             EngagementStats(
-                likesCount = post.likesCount,
+                reactionCounts = post.reactionCounts,
                 commentsCount = post.commentsCount,
                 sharesCount = post.sharesCount,
                 likedByUsers = post.likedByUsers
@@ -219,11 +223,14 @@ fun SocialMediaPostItem(
 
             // Action Buttons
             PostActions(
-                isLiked = isLiked,
+                userReaction = userReaction,
                 isBookmarked = isBookmarked,
-                onLikeClick = {
+                showReactionPicker = showReactionPicker,
+                onToggleReactionPicker = { showReactionPicker = !showReactionPicker },
+                onReactionClick = { reaction ->
                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                    onLikeClick(post.postId, !isLiked)
+                    onReactionClick(post.postId, reaction)
+                    showReactionPicker = false
                 },
                 onCommentClick = { onCommentClick(post.postId) },
                 onShareClick = { onShareClick(post.postId) },
@@ -268,7 +275,6 @@ private fun PostHeader(
                 .size(50.dp)
                 .clickable(onClick = onProfileClick)
         ) {
-            // Always show gradient ring (more prominent if has active story)
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -278,9 +284,9 @@ private fun PostHeader(
                         } else {
                             Brush.linearGradient(
                                 colors = listOf(
-                                    Color(0xFFE1306C).copy(alpha = 0.7f), // Pink
-                                    Color(0xFFC13584).copy(alpha = 0.7f), // Purple
-                                    Color(0xFF833AB4).copy(alpha = 0.7f)  // Deep Purple
+                                    Color(0xFFE1306C).copy(alpha = 0.7f),
+                                    Color(0xFFC13584).copy(alpha = 0.7f),
+                                    Color(0xFF833AB4).copy(alpha = 0.7f)
                                 )
                             )
                         },
@@ -288,7 +294,6 @@ private fun PostHeader(
                     )
             )
 
-            // White padding ring
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -344,7 +349,6 @@ private fun PostHeader(
 
         Spacer(modifier = Modifier.width(10.dp))
 
-        // Username + Timestamp + Privacy
         Column(
             modifier = Modifier
                 .weight(1f)
@@ -384,7 +388,6 @@ private fun PostHeader(
             }
         }
 
-        // More Options Button
         IconButton(
             onClick = onMoreClick,
             modifier = Modifier.size(36.dp)
@@ -406,13 +409,11 @@ private fun VerifiedBadge(
     Box(
         modifier = modifier.size(size.dp)
     ) {
-        // Background circle
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .background(InstagramColors.verifiedBlue, CircleShape)
         )
-        // Checkmark
         Icon(
             imageVector = Icons.Default.Check,
             contentDescription = "Verified account",
@@ -437,7 +438,6 @@ private fun PostCaption(
         }
         append(" ")
 
-        // Parse caption for hashtags and mentions
         val words = caption.split(" ")
         words.forEachIndexed { index, word ->
             when {
@@ -491,7 +491,7 @@ private fun PostCaption(
 @Composable
 private fun PostMediaCarousel(
     mediaItems: List<MediaItem>,
-    isLiked: Boolean,
+    userReaction: ReactionType?,
     doubleTapLike: Boolean,
     likeScale: Float,
     onDoubleTap: () -> Unit,
@@ -513,7 +513,7 @@ private fun PostMediaCarousel(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .pointerInput(isLiked) {
+                    .pointerInput(userReaction) {
                         detectTapGestures(
                             onDoubleTap = { onDoubleTap() },
                             onTap = { onTap() }
@@ -566,7 +566,6 @@ private fun PostMediaCarousel(
                     contentScale = ContentScale.Crop
                 )
 
-                // Video play icon overlay
                 if (mediaItem.type == MediaType.VIDEO) {
                     Box(
                         modifier = Modifier
@@ -584,7 +583,6 @@ private fun PostMediaCarousel(
                     }
                 }
 
-                // Double tap like animation
                 AnimatedVisibility(
                     visible = doubleTapLike,
                     enter = scaleIn(animationSpec = tween(200)) + fadeIn(),
@@ -603,7 +601,6 @@ private fun PostMediaCarousel(
             }
         }
 
-        // Page indicators (dots)
         if (mediaItems.size > 1) {
             Row(
                 modifier = Modifier
@@ -632,79 +629,52 @@ private fun PostMediaCarousel(
 
 @Composable
 private fun EngagementStats(
-    likesCount: Int,
+    reactionCounts: ReactionCounts,
     commentsCount: Int,
     sharesCount: Int,
     likedByUsers: List<UserAvatar>
 ) {
-    if (likesCount > 0 || commentsCount > 0 || sharesCount > 0) {
+    val totalReactions = reactionCounts.likes + reactionCounts.loves
+
+    if (totalReactions > 0 || commentsCount > 0 || sharesCount > 0) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 8.dp),
+                .padding(horizontal = 12.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            if (likesCount > 0) {
+            if (totalReactions > 0) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    // Show actual profile avatars of people who liked
-                    val usersToShow = likedByUsers.take(3)
-
-                    if (usersToShow.isNotEmpty()) {
-                        Box {
-                            usersToShow.forEachIndexed { index, user ->
-                                ProfileAvatarWithGradient(
-                                    avatarUrl = user.avatarUrl,
-                                    username = user.username,
-                                    isVerified = user.isVerified,
-                                    size = 26.dp,
-                                    modifier = Modifier.padding(start = (index * 14).dp)
-                                )
-                            }
+                    // Reaction icons
+                    Row(horizontalArrangement = Arrangement.spacedBy((-8).dp)) {
+                        if (reactionCounts.likes > 0) {
+                            ReactionIcon(
+                                icon = Icons.Filled.ThumbUp,
+                                color = MaterialTheme.colorScheme.primary,
+                                size = 20.dp
+                            )
                         }
-                        Spacer(modifier = Modifier.width((usersToShow.size * 16 + 8).dp))
-                    } else {
-                        // Fallback to heart icons if no user data
-                        Box {
-                            repeat(minOf(3, likesCount)) { index ->
-                                Box(
-                                    modifier = Modifier
-                                        .padding(start = (index * 12).dp)
-                                        .size(26.dp)
-                                        .background(
-                                            brush = InstagramColors.storyGradient,
-                                            shape = CircleShape
-                                        )
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .align(Alignment.Center)
-                                            .padding(2.dp)
-                                            .fillMaxSize()
-                                            .clip(CircleShape)
-                                            .background(MaterialTheme.colorScheme.surface)
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Filled.Favorite,
-                                            contentDescription = null,
-                                            tint = Color(0xFFED4956),
-                                            modifier = Modifier
-                                                .size(12.dp)
-                                                .align(Alignment.Center)
-                                        )
-                                    }
-                                }
-                            }
+                        if (reactionCounts.loves > 0) {
+                            ReactionIcon(
+                                icon = Icons.Filled.Favorite,
+                                color = Color(0xFFED4956),
+                                size = 20.dp
+                            )
                         }
-                        Spacer(modifier = Modifier.width(if (likesCount > 1) 50.dp else 8.dp))
                     }
 
+                    Spacer(modifier = Modifier.width(8.dp))
+
                     Text(
-                        text = if (usersToShow.isNotEmpty() && usersToShow.size == 1) {
-                            "Liked by ${usersToShow[0].username}${if (likesCount > 1) " and ${likesCount - 1} ${if (likesCount == 2) "other" else "others"}" else ""}"
-                        } else if (usersToShow.size > 1) {
-                            "Liked by ${usersToShow[0].username}, ${usersToShow[1].username}${if (likesCount > 2) " and ${likesCount - 2} ${if (likesCount == 3) "other" else "others"}" else ""}"
-                        } else {
-                            "Liked by ${formatCount(likesCount)} ${if (likesCount == 1) "person" else "people"}"
+                        text = buildString {
+                            if (likedByUsers.isNotEmpty()) {
+                                append(likedByUsers[0].username)
+                                if (totalReactions > 1) {
+                                    append(" and ${formatCount((totalReactions - 1).toInt())} ${if (totalReactions == 2L) "other" else "others"}")
+                                }
+                            } else {
+                                append("${formatCount(totalReactions.toInt())} ${if (totalReactions == 1L) "reaction" else "reactions"}")
+                            }
                         },
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurface,
@@ -741,187 +711,204 @@ private fun EngagementStats(
 }
 
 @Composable
-private fun ProfileAvatarWithGradient(
-    avatarUrl: String?,
-    username: String,
-    isVerified: Boolean,
-    size: androidx.compose.ui.unit.Dp,
-    modifier: Modifier = Modifier
+private fun ReactionIcon(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    color: Color,
+    size: androidx.compose.ui.unit.Dp
 ) {
-    Box(modifier = modifier.size(size)) {
-        // Gradient ring
-        Box(
+    Box(
+        modifier = Modifier
+            .size(size)
+            .background(MaterialTheme.colorScheme.surface, CircleShape)
+            .border(2.dp, MaterialTheme.colorScheme.surface, CircleShape)
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = color,
             modifier = Modifier
                 .fillMaxSize()
-                .background(
-                    brush = InstagramColors.storyGradient,
-                    shape = CircleShape
-                )
+                .padding(2.dp)
         )
-
-        // White padding
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(3.dp)
-                .background(
-                    color = MaterialTheme.colorScheme.surface,
-                    shape = CircleShape
-                )
-        ) {
-            SubcomposeAsyncImage(
-                model = ImageRequest.Builder(LocalContext.current)
-                    .data(avatarUrl)
-                    .crossfade(true)
-                    .build(),
-                contentDescription = "Avatar of $username",
-                loading = {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(MaterialTheme.colorScheme.surfaceVariant)
-                    )
-                },
-                error = {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(MaterialTheme.colorScheme.surfaceVariant)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Person,
-                            contentDescription = null,
-                            modifier = Modifier
-                                .size((size.value * 0.6f).dp)
-                                .align(Alignment.Center),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                },
-                modifier = Modifier
-                    .fillMaxSize()
-                    .clip(CircleShape),
-                contentScale = ContentScale.Crop
-            )
-        }
-
-        // Verified badge overlay
-        if (isVerified) {
-            Box(
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .offset(x = 2.dp, y = 2.dp)
-            ) {
-                VerifiedBadge(size = (size.value * 0.45f).toInt())
-            }
-        }
     }
 }
 
 @Composable
 private fun PostActions(
-    isLiked: Boolean,
+    userReaction: ReactionType?,
     isBookmarked: Boolean,
-    onLikeClick: () -> Unit,
+    showReactionPicker: Boolean,
+    onToggleReactionPicker: () -> Unit,
+    onReactionClick: (ReactionType) -> Unit,
     onCommentClick: () -> Unit,
     onShareClick: () -> Unit,
     onBookmarkClick: () -> Unit
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 4.dp, vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        // Like Button
-        TextButton(
-            onClick = onLikeClick,
-            modifier = Modifier
-                .weight(1f)
-                .semantics {
-                    contentDescription = if (isLiked) "Unlike post" else "Like post"
-                }
+    Column {
+        // Reaction Picker Dropdown (positioned above the action buttons)
+        androidx.compose.animation.AnimatedVisibility(
+            visible = showReactionPicker,
+            enter = fadeIn() + expandVertically(),
+            exit = fadeOut() + shrinkVertically()
         ) {
-            Icon(
-                imageVector = if (isLiked) Icons.Filled.ThumbUp else Icons.Outlined.ThumbUpOffAlt,
-                contentDescription = null,
-                tint = if (isLiked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(20.dp)
-            )
-            Spacer(modifier = Modifier.width(6.dp))
-            Text(
-                text = "Like",
-                color = if (isLiked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = if (isLiked) FontWeight.SemiBold else FontWeight.Normal
-            )
+            Card(
+                modifier = Modifier
+                    .padding(start = 16.dp, bottom = 4.dp)
+                    .wrapContentSize(),
+                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+                shape = RoundedCornerShape(24.dp)
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    IconButton(
+                        onClick = { onReactionClick(ReactionType.Like) },
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.ThumbUp,
+                            contentDescription = "Like",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                    IconButton(
+                        onClick = { onReactionClick(ReactionType.Love) },
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Favorite,
+                            contentDescription = "Love",
+                            tint = Color(0xFFED4956),
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                }
+            }
         }
 
-        // Comment Button
-        TextButton(
-            onClick = onCommentClick,
+        Row(
             modifier = Modifier
-                .semantics {
+                .fillMaxWidth()
+                .padding(horizontal = 4.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Reaction Button (Like/Love)
+            TextButton(
+                onClick = {
+                    if (userReaction == null) {
+                        onReactionClick(ReactionType.Like)
+                    } else {
+                        onToggleReactionPicker()
+                    }
+                },
+                modifier = Modifier
+                    .weight(1f)
+                    .semantics {
+                        contentDescription = when (userReaction) {
+                            ReactionType.Like -> "Liked post"
+                            ReactionType.Love -> "Loved post"
+                            null -> "React to post"
+                        }
+                    }
+            ) {
+                Icon(
+                    imageVector = when (userReaction) {
+                        ReactionType.Like -> Icons.Filled.ThumbUp
+                        ReactionType.Love -> Icons.Filled.Favorite
+                        null -> Icons.Outlined.ThumbUpOffAlt
+                    },
+                    contentDescription = null,
+                    tint = when (userReaction) {
+                        ReactionType.Like -> MaterialTheme.colorScheme.primary
+                        ReactionType.Love -> Color(0xFFED4956)
+                        null -> MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = when (userReaction) {
+                        ReactionType.Like -> "Like"
+                        ReactionType.Love -> "Love"
+                        null -> "Like"
+                    },
+                    color = when (userReaction) {
+                        ReactionType.Like -> MaterialTheme.colorScheme.primary
+                        ReactionType.Love -> Color(0xFFED4956)
+                        null -> MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = if (userReaction != null) FontWeight.SemiBold else FontWeight.Normal
+                )
+            }
+
+            // Comment Button
+            TextButton(
+                onClick = onCommentClick,
+                modifier = Modifier.semantics {
                     contentDescription = "Comment on post"
                 }
-        ) {
-            Icon(
-                imageVector = Icons.Outlined.ChatBubbleOutline,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(20.dp)
-            )
-            Spacer(modifier = Modifier.width(6.dp))
-            Text(
-                text = "Comment",
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                style = MaterialTheme.typography.bodyMedium
-            )
-        }
-
-        // Share Button
-        TextButton(
-            onClick = onShareClick,
-            modifier = Modifier
-                .weight(1f)
-                .semantics {
-                    contentDescription = "Share post"
-                }
-        ) {
-            Icon(
-                imageVector = Icons.Outlined.Share,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(20.dp)
-            )
-            Spacer(modifier = Modifier.width(6.dp))
-            Text(
-                text = "Share",
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                style = MaterialTheme.typography.bodyMedium
-            )
-        }
-
-        // Bookmark Button
-        IconButton(
-            onClick = onBookmarkClick,
-            modifier = Modifier.semantics {
-                contentDescription = if (isBookmarked) "Remove bookmark" else "Bookmark post"
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.ChatBubbleOutline,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = "Comment",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodyMedium
+                )
             }
-        ) {
-            Icon(
-                imageVector = if (isBookmarked) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder,
-                contentDescription = null,
-                tint = if (isBookmarked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(22.dp)
-            )
-        }
-    }
 
-    HorizontalDivider(
-        thickness = 0.5.dp,
-        color = MaterialTheme.colorScheme.outlineVariant
-    )
+            // Share Button
+            TextButton(
+                onClick = onShareClick,
+                modifier = Modifier
+                    .weight(1f)
+                    .semantics {
+                        contentDescription = "Share post"
+                    }
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.Share,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = "Share",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
+
+            // Bookmark Button
+            IconButton(
+                onClick = onBookmarkClick,
+                modifier = Modifier.semantics {
+                    contentDescription = if (isBookmarked) "Remove bookmark" else "Bookmark post"
+                }
+            ) {
+                Icon(
+                    imageVector = if (isBookmarked) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder,
+                    contentDescription = null,
+                    tint = if (isBookmarked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(22.dp)
+                )
+            }
+        }
+
+        HorizontalDivider(
+            thickness = 0.5.dp,
+            color = MaterialTheme.colorScheme.outlineVariant
+        )
+    }
 }
 
 @Composable

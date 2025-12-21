@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.Chat
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
@@ -82,7 +83,7 @@ fun MainScreen() {
                 0 -> HomeScreen()
                 1 -> ChatScreen()
                 3 -> FriendsScreen()
-                4 -> MarketsScreen()
+                4 -> StreamScreen()
             }
         }
     }
@@ -169,10 +170,10 @@ fun AppBottomNavigationBar(
 ) {
     val items = listOf(
         NavigationItem("Home", Icons.Outlined.Home, Icons.Filled.Home),
-        NavigationItem("Chats", Icons.Outlined.Chat, Icons.Filled.Chat),
-        NavigationItem("Create", Icons.Outlined.Create, Icons.Filled.Create),
+        NavigationItem("Chats", Icons.AutoMirrored.Outlined.Chat, Icons.Filled.Chat),
+        NavigationItem("Create", Icons.Outlined.AddCircle, Icons.Filled.AddCircle),
         NavigationItem("Friends", Icons.Outlined.People, Icons.Filled.People),
-        NavigationItem("Markets", Icons.Outlined.Store, Icons.Filled.Store)
+        NavigationItem("Streams", Icons.Outlined.Stream, Icons.Filled.Stream)
     )
 
     Surface(
@@ -190,18 +191,12 @@ fun AppBottomNavigationBar(
                 NavigationBarItem(
                     icon = {
                         Icon(
-                            imageVector = if (selectedTab == index) item.iconFilled else item.icon,
+                            imageVector = item.iconFilled,
                             contentDescription = item.title,
-                            modifier = Modifier.size(26.dp)
+                            modifier = Modifier.size(30.dp)
                         )
                     },
-                    label = {
-                        Text(
-                            text = item.title,
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = if (selectedTab == index) FontWeight.SemiBold else FontWeight.Normal
-                        )
-                    },
+                    label = null,
                     selected = selectedTab == index,
                     onClick = { onTabSelected(index) },
                     colors = NavigationBarItemDefaults.colors(

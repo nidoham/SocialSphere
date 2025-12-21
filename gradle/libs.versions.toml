@@ -26,6 +26,7 @@ newpipeextractor = "fba182c"
 coilCompose = "2.7.0"
 roomVersion = "2.6.1"
 animationCore = "1.10.0"
+material3 = "1.4.0"
 
 [libraries]
 # BOMs - Centralized Version Management
@@ -86,6 +87,7 @@ junit = { group = "junit", name = "junit", version = "4.13.2" }
 androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitVersion" }
 androidx-espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espressoCore" }
 androidx-compose-animation-core = { group = "androidx.compose.animation", name = "animation-core", version.ref = "animationCore" }
+androidx-material3 = { group = "androidx.compose.material3", name = "material3", version.ref = "material3" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

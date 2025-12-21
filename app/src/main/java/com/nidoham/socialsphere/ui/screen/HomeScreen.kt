@@ -34,9 +34,9 @@ import com.nidoham.socialsphere.ui.viewmodel.PostsUiState
  * Features:
  * - Pull to refresh
  * - Infinite scroll pagination
- * - Real-time reaction updates
+ * - Real-time reaction updates (Like/Love)
  * - Story viewing with view count tracking
- * - Post interactions (like, comment, share, bookmark)
+ * - Post interactions (reactions, comment, share, bookmark)
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -154,16 +154,10 @@ fun HomeScreen(
                                     viewModel.incrementPostViewCount(postWithAuthor.post.id)
                                     onPostClick(postWithAuthor.post.id)
                                 },
-                                onLikeClick = {
+                                onReactionClick = { reaction ->
                                     viewModel.togglePostReaction(
                                         postWithAuthor.post.id,
-                                        ReactionType.Like
-                                    )
-                                },
-                                onLoveClick = {
-                                    viewModel.togglePostReaction(
-                                        postWithAuthor.post.id,
-                                        ReactionType.Love
+                                        reaction
                                     )
                                 },
                                 onCommentClick = { onCommentClick(postWithAuthor.post.id) },
@@ -322,8 +316,7 @@ private fun PostItem(
     reactionCounts: ReactionCounts?,
     userReaction: ReactionType?,
     onPostClick: () -> Unit,
-    onLikeClick: () -> Unit,
-    onLoveClick: () -> Unit,
+    onReactionClick: (ReactionType) -> Unit,
     onCommentClick: () -> Unit,
     onShareClick: () -> Unit,
     onBookmarkClick: () -> Unit,
@@ -334,22 +327,17 @@ private fun PostItem(
     // Memoize post data to prevent unnecessary recalculations
     val postData = remember(postWithAuthor, reactionCounts) {
         postWithAuthor.toPostData(
-            likesCount = (reactionCounts?.likes ?: 0L).toInt(),
-            lovesCount = (reactionCounts?.loves ?: 0L).toInt()
+            reactionCounts = reactionCounts ?: ReactionCounts.empty()
         )
     }
 
-    // Derive reaction states
-    val isLiked = userReaction == ReactionType.Like
-    val isLoved = userReaction == ReactionType.Love
-
     SocialMediaPostItem(
         post = postData,
-        isLiked = isLiked,
+        userReaction = userReaction,
         isBookmarked = false, // TODO: Implement bookmark state
         modifier = modifier,
         onPostClick = { onPostClick() },
-        onLikeClick = { _, _ -> onLikeClick() },
+        onReactionClick = { _, reaction -> onReactionClick(reaction) },
         onCommentClick = { onCommentClick() },
         onShareClick = { onShareClick() },
         onBookmarkClick = { _, _ -> onBookmarkClick() },
@@ -543,8 +531,7 @@ private fun ErrorSnackbar(
  * Extracted as extension for better organization and reusability.
  */
 private fun PostWithAuthor.toPostData(
-    likesCount: Int = 0,
-    lovesCount: Int = 0
+    reactionCounts: ReactionCounts
 ): PostData {
     return PostData(
         postId = this.post.id,
@@ -560,10 +547,11 @@ private fun PostWithAuthor.toPostData(
                 type = inferMediaType(url)
             )
         },
-        likesCount = likesCount,
+        reactionCounts = reactionCounts,
         commentsCount = this.post.commentsCount,
         sharesCount = 0, // TODO: Implement shares tracking
-        topComments = emptyList() // TODO: Load top comments if available
+        topComments = emptyList(), // TODO: Load top comments if available
+        likedByUsers = emptyList() // TODO: Load users who liked if available
     )
 }
 
