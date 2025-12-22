@@ -52,7 +52,7 @@ import com.nidoham.socialsphere.extractor.ReactionType
  * - Multi-image carousel with indicators
  * - Video thumbnail support with play icon
  * - Engagement stats with profile avatars
- * - Like/Love 4reactions support
+ * - Like/Love reactions support
  * - Comments preview section
  * - Privacy indicator
  * - Enhanced verified badges
@@ -163,7 +163,7 @@ fun SocialMediaPostItem(
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
+            containerColor = MaterialTheme.colorScheme.background
         )
     ) {
         Column(
@@ -299,7 +299,7 @@ private fun PostHeader(
                     .fillMaxSize()
                     .padding(3.dp)
                     .background(
-                        color = MaterialTheme.colorScheme.surface,
+                        color = MaterialTheme.colorScheme.background,
                         shape = CircleShape
                     )
             ) {
@@ -640,24 +640,25 @@ private fun EngagementStats(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .background(MaterialTheme.colorScheme.background)
                 .padding(horizontal = 12.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             if (totalReactions > 0) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     // Reaction icons
-                    Row(horizontalArrangement = Arrangement.spacedBy((-8).dp)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy((-1).dp)) {
                         if (reactionCounts.likes > 0) {
                             ReactionIcon(
                                 icon = Icons.Filled.ThumbUp,
-                                color = MaterialTheme.colorScheme.primary,
+                                color = Color.Yellow,
                                 size = 20.dp
                             )
                         }
                         if (reactionCounts.loves > 0) {
                             ReactionIcon(
                                 icon = Icons.Filled.Favorite,
-                                color = Color(0xFFED4956),
+                                color = Color.Red,
                                 size = 20.dp
                             )
                         }
@@ -677,7 +678,7 @@ private fun EngagementStats(
                             }
                         },
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurface,
+                        color = Color.White,
                         fontWeight = FontWeight.Normal
                     )
                 }
@@ -719,8 +720,8 @@ private fun ReactionIcon(
     Box(
         modifier = Modifier
             .size(size)
-            .background(MaterialTheme.colorScheme.surface, CircleShape)
-            .border(2.dp, MaterialTheme.colorScheme.surface, CircleShape)
+            .background(MaterialTheme.colorScheme.background, CircleShape)
+            .border(2.dp, MaterialTheme.colorScheme.background, CircleShape)
     ) {
         Icon(
             imageVector = icon,

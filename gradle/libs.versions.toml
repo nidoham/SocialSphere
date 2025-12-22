@@ -27,6 +27,9 @@ coilCompose = "2.7.0"
 roomVersion = "2.6.1"
 animationCore = "1.10.0"
 material3 = "1.4.0"
+appcompat = "1.7.1"
+activity = "1.12.2"
+constraintlayout = "2.2.1"
 
 [libraries]
 # BOMs - Centralized Version Management
@@ -88,6 +91,9 @@ androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "j
 androidx-espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espressoCore" }
 androidx-compose-animation-core = { group = "androidx.compose.animation", name = "animation-core", version.ref = "animationCore" }
 androidx-material3 = { group = "androidx.compose.material3", name = "material3", version.ref = "material3" }
+androidx-appcompat = { group = "androidx.appcompat", name = "appcompat", version.ref = "appcompat" }
+androidx-activity = { group = "androidx.activity", name = "activity", version.ref = "activity" }
+androidx-constraintlayout = { group = "androidx.constraintlayout", name = "constraintlayout", version.ref = "constraintlayout" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

@@ -302,51 +302,11 @@ fun OnboardingScreen(
         }
     }
 
-    // Instagram-inspired animated gradient background
-    val infiniteTransition = rememberInfiniteTransition(label = "gradient")
-    val animatedOffset by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1000f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(10000, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "offset"
-    )
-
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    colors = listOf(
-                        Color(0xFF0F0F0F), // Fallback DarkBackground
-                        Color(0xFF1C212B),
-                        Color(0xFF252933)
-                    ),
-                    startY = animatedOffset,
-                    endY = animatedOffset + 1000f
-                )
-            )
+            .background(MaterialTheme.colorScheme.background)
     ) {
-        // Instagram gradient overlay (subtle)
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .alpha(0.1f)
-                .background(
-                    Brush.radialGradient(
-                        colors = listOf(
-                            Color(0xFF833AB4), // InstagramPurple
-                            Color(0xFFC13584), // InstagramPink
-                            Color(0xFFFD1D1D), // InstagramOrange
-                            Color.Transparent
-                        ),
-                        radius = 1800f
-                    )
-                )
-        )
-
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -382,12 +342,11 @@ fun OnboardingScreen(
                             ),
                         contentAlignment = Alignment.Center
                     ) {
-                        // Fallback icon if drawable is missing, otherwise ensure R.drawable.app_icon exists
                         Icon(
-                            imageVector = Icons.Default.Public, // Placeholder/Fallback
+                            painter = painterResource(id = R.drawable.app_icon),
                             contentDescription = "SocialSphere",
-                            modifier = Modifier.size(65.dp),
-                            tint = Color.White
+                            tint = Color.White,
+                            modifier = Modifier.size(65.dp)
                         )
                     }
 
@@ -523,7 +482,12 @@ fun OnboardingScreen(
                                 password = it
                                 errorMessage = null
                             },
-                            label = { Text("Password", style = MaterialTheme.typography.bodyMedium) },
+                            label = {
+                                Text(
+                                    "Password",
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                            },
                             leadingIcon = {
                                 Icon(
                                     Icons.Outlined.Lock,
@@ -601,7 +565,10 @@ fun OnboardingScreen(
                             shape = RoundedCornerShape(14.dp),
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = MaterialTheme.colorScheme.primary,
-                                disabledContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
+                                contentColor = Color.White,
+                                disabledContainerColor = MaterialTheme.colorScheme.primary.copy(
+                                    alpha = 0.5f
+                                )
                             ),
                             enabled = !isLoading
                         ) {
@@ -668,9 +635,9 @@ fun OnboardingScreen(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.Center
                                 ) {
-                                    // Fallback Icon for Google if resource missing
+                                    val icon: ImageVector = ImageVector.vectorResource(R.drawable.ic_google)
                                     Icon(
-                                        painter = painterResource(id = R.drawable.ic_google),
+                                        imageVector = icon,
                                         contentDescription = "Google",
                                         modifier = Modifier.size(22.dp)
                                     )

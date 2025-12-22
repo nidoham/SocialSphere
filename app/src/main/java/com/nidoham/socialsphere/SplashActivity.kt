@@ -20,13 +20,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
-import com.nidoham.socialsphere.ui.theme.DarkBackground
-import com.nidoham.socialsphere.ui.theme.InstagramPurple
-import com.nidoham.socialsphere.ui.theme.InstagramPink
-import com.nidoham.socialsphere.ui.theme.InstagramOrange
 import com.nidoham.socialsphere.ui.theme.SocialSphereTheme
 import kotlinx.coroutines.delay
 
@@ -70,7 +65,7 @@ fun SplashScreen(onTimeout: () -> Unit) {
 
     Surface(
         modifier = Modifier.fillMaxSize(),
-        color = DarkBackground
+        color = MaterialTheme.colorScheme.background
     ) {
         Box(
             modifier = Modifier.fillMaxSize(),
@@ -81,17 +76,7 @@ fun SplashScreen(onTimeout: () -> Unit) {
                 modifier = Modifier
                     .fillMaxSize()
                     .alpha(if (gradientVisible) 0.15f else 0f)
-                    .background(
-                        brush = Brush.radialGradient(
-                            colors = listOf(
-                                InstagramPurple,
-                                InstagramPink,
-                                InstagramOrange,
-                                DarkBackground
-                            ),
-                            radius = 1500f
-                        )
-                    )
+                    .background(MaterialTheme.colorScheme.background)
             )
 
             // App logo with animation

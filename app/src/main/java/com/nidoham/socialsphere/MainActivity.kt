@@ -19,6 +19,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -28,15 +29,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.nidoham.socialsphere.ui.screen.*
 import com.nidoham.socialsphere.ui.screens.StreamScreen
-import com.nidoham.socialsphere.ui.theme.DarkBackground
-import com.nidoham.socialsphere.ui.theme.IconActive
-import com.nidoham.socialsphere.ui.theme.IconInactive
-import com.nidoham.socialsphere.ui.theme.NotificationDot
-import com.nidoham.socialsphere.ui.theme.Primary
-import com.nidoham.socialsphere.ui.theme.PrimaryContainer
 import com.nidoham.socialsphere.ui.theme.SocialSphereTheme
-import com.nidoham.socialsphere.ui.theme.TextPrimary
-import com.nidoham.socialsphere.ui.theme.TextTertiary
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -57,7 +50,7 @@ fun MainScreen() {
     val context = LocalContext.current
 
     Scaffold(
-        containerColor = DarkBackground,
+        containerColor = MaterialTheme.colorScheme.background,
         topBar = { AppTopBar() },
         bottomBar = {
             AppBottomNavigationBar(
@@ -77,7 +70,7 @@ fun MainScreen() {
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(DarkBackground)
+                .background(MaterialTheme.colorScheme.background)
                 .padding(paddingValues)
         ) {
             when (selectedTab) {
@@ -93,6 +86,8 @@ fun MainScreen() {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AppTopBar() {
+    val context = LocalContext.current
+
     TopAppBar(
         title = {
             Row(
@@ -111,17 +106,20 @@ fun AppTopBar() {
                     text = stringResource(id = R.string.app_name),
                     style = MaterialTheme.typography.titleLarge,
                     fontStyle = FontStyle.Italic,
-                    color = TextPrimary
+                    color = MaterialTheme.colorScheme.onBackground
                 )
             }
         },
         actions = {
             // Search Icon
-            IconButton(onClick = { }) {
+            IconButton(onClick = {
+                val intent = Intent(context, SearchActivity::class.java)
+                context.startActivity(intent)
+            }) {
                 Icon(
                     imageVector = Icons.Outlined.Search,
                     contentDescription = "Search",
-                    tint = IconActive,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.size(28.dp)
                 )
             }
@@ -134,7 +132,7 @@ fun AppTopBar() {
                     Icon(
                         imageVector = Icons.Outlined.Notifications,
                         contentDescription = "Notifications",
-                        tint = IconActive,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(28.dp)
                     )
                 }
@@ -144,22 +142,22 @@ fun AppTopBar() {
                         .align(Alignment.TopEnd)
                         .offset(x = (-2).dp, y = 8.dp)
                         .size(18.dp)
-                        .background(NotificationDot, CircleShape),
+                        .background(MaterialTheme.colorScheme.error, CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
                         text = "3",
                         style = MaterialTheme.typography.labelSmall,
-                        color = androidx.compose.ui.graphics.Color.White,
+                        color = MaterialTheme.colorScheme.onError,
                         fontWeight = FontWeight.Bold
                     )
                 }
             }
         },
         colors = TopAppBarDefaults.topAppBarColors(
-            containerColor = DarkBackground,
-            titleContentColor = TextPrimary,
-            actionIconContentColor = IconActive
+            containerColor = MaterialTheme.colorScheme.background,
+            titleContentColor = MaterialTheme.colorScheme.onBackground,
+            actionIconContentColor = MaterialTheme.colorScheme.onSurfaceVariant
         )
     )
 }
@@ -178,13 +176,13 @@ fun AppBottomNavigationBar(
     )
 
     Surface(
-        color = DarkBackground,
+        color = MaterialTheme.colorScheme.background,
         tonalElevation = 0.dp,
         shadowElevation = 0.dp
     ) {
         NavigationBar(
-            containerColor = DarkBackground,
-            contentColor = IconActive,
+            containerColor = MaterialTheme.colorScheme.background,
+            contentColor = MaterialTheme.colorScheme.primary,
             tonalElevation = 0.dp,
             modifier = Modifier.height(70.dp)
         ) {
@@ -201,11 +199,11 @@ fun AppBottomNavigationBar(
                     selected = selectedTab == index,
                     onClick = { onTabSelected(index) },
                     colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = Primary,
-                        selectedTextColor = Primary,
-                        indicatorColor = PrimaryContainer.copy(alpha = 0.2f),
-                        unselectedIconColor = IconInactive,
-                        unselectedTextColor = TextTertiary
+                        selectedIconColor = Color.White,
+                        selectedTextColor = Color.White,
+                        indicatorColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.2f),
+                        unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                        unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 )
             }

@@ -23,7 +23,6 @@ import com.nidoham.social.stories.StoryWithAuthor
 import com.nidoham.socialsphere.extractor.ReactionCounts
 import com.nidoham.socialsphere.extractor.ReactionType
 import com.nidoham.socialsphere.ui.item.*
-import com.nidoham.socialsphere.ui.theme.DarkBackground
 import com.nidoham.socialsphere.ui.viewmodel.HomeUiState
 import com.nidoham.socialsphere.ui.viewmodel.HomeViewModel
 import com.nidoham.socialsphere.ui.viewmodel.PostsUiState
@@ -90,7 +89,7 @@ fun HomeScreen(
                 state = listState,
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(DarkBackground),
+                    .background(MaterialTheme.colorScheme.background),
                 contentPadding = PaddingValues(bottom = 80.dp)
             ) {
                 // Stories Section
