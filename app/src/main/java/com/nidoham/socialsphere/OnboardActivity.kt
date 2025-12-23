@@ -145,8 +145,8 @@ fun OnboardingScreen(
                             username = firebaseUser.displayName?.replace(" ", "")?.lowercase()
                                 ?: "user_${firebaseUser.uid.take(5)}",
                             name = firebaseUser.displayName ?: "User",
-                            email = firebaseUser.email ?: "",
-                            avatarUrl = firebaseUser.photoUrl?.toString(),
+                            email = firebaseUser.email.toString(),
+                            avatarUrl = firebaseUser.photoUrl.toString(),
                             createdAt = System.currentTimeMillis(),
                             onlineAt = System.currentTimeMillis(),
                             verified = false,

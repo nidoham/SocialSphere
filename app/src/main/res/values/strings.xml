@@ -1,3 +1,125 @@
 <resources>
-    <string name="app_name">Iɳʂƚαɠɾαɱ</string>
+    <string name="app_name">Ɇxƚɾαɠɾαɱ</string>
+
+    <!-- Signup Screen Titles -->
+    <string name="signup_email_title">What\'s your email?</string>
+    <string name="signup_email_subtitle">Enter the email where you can be contacted. No one will see this on your profile.</string>
+
+    <string name="signup_username_title">Create a username</string>
+    <string name="signup_username_subtitle">Add a username. You can change this at any time.</string>
+
+    <string name="signup_password_title">Create a password</string>
+    <string name="signup_password_subtitle">Create a password with at least 6 characters. It should be something others can\'t guess.</string>
+
+    <string name="signup_birthday_title">Add your birthday</string>
+    <string name="signup_birthday_subtitle">This won\'t be part of your public profile.</string>
+    <string name="signup_birthday_info">Why do I need to provide my birthday?</string>
+
+    <string name="signup_phone_title">Add your phone number</string>
+    <string name="signup_phone_subtitle">We\'ll send you a verification code to confirm your phone number.</string>
+
+    <string name="signup_otp_title">Enter confirmation code</string>
+    <string name="signup_otp_subtitle">Enter the code we sent to %s</string>
+
+    <!-- Input Field Labels -->
+    <string name="label_email">Email</string>
+    <string name="label_username">Username</string>
+    <string name="label_password">Password</string>
+    <string name="label_confirm_password">Confirm Password</string>
+    <string name="label_birthday">Birthday</string>
+    <string name="label_phone_number">Phone Number</string>
+    <string name="label_otp_code">Confirmation Code</string>
+    <string name="label_full_name">Full Name</string>
+
+    <!-- Input Field Placeholders -->
+    <string name="placeholder_email">example@email.com</string>
+    <string name="placeholder_username">username</string>
+    <string name="placeholder_password">Min 6 characters</string>
+    <string name="placeholder_birthday">Select your birthday</string>
+    <string name="placeholder_phone">+1234567890</string>
+
+    <!-- Button Text -->
+    <string name="button_next">Next</string>
+    <string name="button_confirm">Confirm</string>
+    <string name="button_send_code">Send Code</string>
+    <string name="button_resend">Resend</string>
+    <string name="button_signup">Sign Up</string>
+    <string name="button_login">Log In</string>
+    <string name="button_back">Back</string>
+
+    <!-- Error Messages -->
+    <string name="error_email_required">Email is required</string>
+    <string name="error_email_invalid">Please enter a valid email</string>
+    <string name="error_email_exists">This email is already registered</string>
+
+    <string name="error_username_required">Username is required</string>
+    <string name="error_username_short">Username must be at least 3 characters</string>
+    <string name="error_username_invalid">Username can only contain letters, numbers, dots and underscores</string>
+    <string name="error_username_taken">This username is already taken</string>
+
+    <string name="error_password_required">Password is required</string>
+    <string name="error_password_short">Password must be at least 6 characters</string>
+    <string name="error_password_weak">Password is too weak. Use letters, numbers and symbols</string>
+    <string name="error_password_mismatch">Passwords do not match</string>
+
+    <string name="error_birthday_required">Birthday is required</string>
+    <string name="error_birthday_age">You must be at least 13 years old</string>
+
+    <string name="error_phone_required">Phone number is required</string>
+    <string name="error_phone_invalid">Please enter a valid phone number</string>
+    <string name="error_phone_format">Include your country code (e.g., +1 for US)</string>
+
+    <string name="error_otp_required">OTP code is required</string>
+    <string name="error_otp_invalid">Please enter a valid 6-digit code</string>
+    <string name="error_otp_incorrect">Invalid code. Please try again.</string>
+
+    <string name="error_network">Network error. Please check your connection</string>
+    <string name="error_verification_failed">Verification failed: %s</string>
+    <string name="error_signup_failed">Signup failed: %s</string>
+
+    <!-- Success Messages -->
+    <string name="success_account_created">Account created successfully!</string>
+    <string name="success_verification_sent">Verification email sent to %s</string>
+    <string name="success_code_sent">Verification code sent</string>
+
+    <!-- Supporting Text -->
+    <string name="support_username_rules">Letters, numbers, dots and underscores only</string>
+    <string name="support_phone_format">Include your country code (e.g., +1 for US)</string>
+    <string name="support_password_strength">Use a mix of letters, numbers, and symbols</string>
+
+    <!-- Links and Additional Text -->
+    <string name="text_already_have_account">Already have an account?</string>
+    <string name="text_dont_have_account">Don\'t have an account?</string>
+    <string name="text_didnt_receive_code">Didn\'t receive the code?</string>
+    <string name="text_terms">By signing up, you agree to our Terms of Service and Privacy Policy</string>
+    <string name="text_create_account">Create Account</string>
+    <string name="text_join_app">Join %s</string>
+    <string name="text_get_started">Create an account to get started</string>
+
+    <!-- Content Descriptions -->
+    <string name="cd_back_button">Back</string>
+    <string name="cd_show_password">Show password</string>
+    <string name="cd_hide_password">Hide password</string>
+    <string name="cd_select_date">Select date</string>
+    <string name="cd_app_logo">App logo</string>
+    <string name="cd_email_icon">Email icon</string>
+    <string name="cd_username_icon">Username icon</string>
+    <string name="cd_password_icon">Password icon</string>
+    <string name="cd_phone_icon">Phone icon</string>
+    <string name="cd_birthday_icon">Birthday icon</string>
+    <string name="cd_error_icon">Error icon</string>
+
+    <!-- Firebase Error Messages -->
+    <string name="firebase_error_invalid_email">The email address is badly formatted</string>
+    <string name="firebase_error_email_exists">The email address is already in use</string>
+    <string name="firebase_error_weak_password">The password is too weak</string>
+    <string name="firebase_error_invalid_phone">Invalid phone number format</string>
+    <string name="firebase_error_quota_exceeded">SMS quota exceeded</string>
+    <string name="firebase_error_invalid_code">The verification code is invalid</string>
+
+    <!-- Loading Messages -->
+    <string name="loading_creating_account">Creating your account…</string>
+    <string name="loading_sending_code">Sending verification code…</string>
+    <string name="loading_verifying">Verifying…</string>
+
 </resources>

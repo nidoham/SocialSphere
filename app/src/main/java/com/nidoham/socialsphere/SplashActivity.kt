@@ -22,6 +22,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
+import com.nidoham.socialsphere.auth.activities.LoginActivity
 import com.nidoham.socialsphere.ui.theme.SocialSphereTheme
 import kotlinx.coroutines.delay
 
@@ -34,7 +35,7 @@ class SplashActivity : ComponentActivity() {
             SocialSphereTheme {
                 SplashScreen(
                     onTimeout = {
-                        val intent = Intent(this, OnboardActivity::class.java)
+                        val intent = Intent(this, LoginActivity::class.java)
                         startActivity(intent)
                         overridePendingTransition(
                             android.R.anim.fade_in,

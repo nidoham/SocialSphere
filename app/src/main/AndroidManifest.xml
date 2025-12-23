@@ -12,6 +12,12 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.SocialSphere">
         <activity
+            android:name=".auth.activities.SignupActivity"
+            android:exported="false" />
+        <activity
+            android:name=".auth.activities.LoginActivity"
+            android:exported="false" />
+        <activity
             android:name=".SearchActivity"
             android:exported="false" />
         <activity
