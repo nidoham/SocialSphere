@@ -3,8 +3,9 @@ plugins {
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.google.gms.google.services)
+    alias(libs.plugins.ksp)
+    alias(libs.plugins.hilt.android)
     id("kotlin-parcelize")
-    id("kotlin-kapt")
 }
 
 android {
@@ -112,21 +113,25 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtime.ktx)
 
     /**
-     * Room Database
+     * Room Database (Using KSP)
      */
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
+    ksp(libs.androidx.room.compiler)
+
+    /**
+     * Hilt Dependency Injection (Using KSP)
+     */
+    implementation(libs.hilt.android)
+    ksp(libs.hilt.compiler)
+
+    /**
+     * Additional Dependencies
+     */
     implementation(libs.androidx.material3)
     implementation(libs.androidx.appcompat)
     implementation(libs.androidx.activity)
     implementation(libs.androidx.constraintlayout)
-    kapt(libs.androidx.room.compiler)
-
-    /**
-     * Hilt Dependency Injection
-     */
-    implementation(libs.hilt.android)
-    kapt(libs.hilt.compiler)
 
     /**
      * Splash Screen

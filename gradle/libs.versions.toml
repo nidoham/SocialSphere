@@ -2,7 +2,8 @@
 accompanistSwiperefresh = "0.36.0"
 agp = "8.13.2"
 hiltAndroid = "2.57.2"
-kotlin = "2.2.0"
+kotlin = "2.3.0"
+ksp = "2.3.4"
 composeBom = "2025.12.01"
 kotlinxSerialization = "1.9.0"
 kotlinxDatetime = "0.7.1"
@@ -24,7 +25,7 @@ espressoCore = "3.7.0"
 googleGmsGoogleServices = "4.4.4"
 newpipeextractor = "fba182c"
 coilCompose = "2.7.0"
-roomVersion = "2.6.1"
+roomVersion = "2.8.4"
 animationCore = "1.10.0"
 material3 = "1.4.0"
 appcompat = "1.7.1"
@@ -99,4 +100,6 @@ androidx-constraintlayout = { group = "androidx.constraintlayout", name = "const
 android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
+ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
+hilt-android = { id = "com.google.dagger.hilt.android", version.ref = "hiltAndroid" }
 google-gms-google-services = { id = "com.google.gms.google-services", version.ref = "googleGmsGoogleServices" }

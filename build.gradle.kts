@@ -3,7 +3,6 @@ plugins {
     alias(libs.plugins.kotlin.android) apply false
     alias(libs.plugins.kotlin.compose) apply false
     alias(libs.plugins.google.gms.google.services) apply false
-
-    id("com.google.dagger.hilt.android") version "2.57.2" apply false
-    id("org.jetbrains.kotlin.kapt") version "2.2.0" apply false
+    alias(libs.plugins.ksp) apply false
+    alias(libs.plugins.hilt.android) apply false
 }

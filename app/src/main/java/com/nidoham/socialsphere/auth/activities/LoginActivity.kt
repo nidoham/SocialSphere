@@ -41,6 +41,7 @@ import androidx.compose.ui.unit.dp
 import com.google.firebase.Firebase
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.auth
+import com.nidoham.socialsphere.MainActivity
 import com.nidoham.socialsphere.R
 import com.nidoham.socialsphere.ui.theme.SocialSphereTheme
 import kotlinx.coroutines.launch
@@ -79,11 +80,10 @@ class LoginActivity : ComponentActivity() {
     }
 
     private fun navigateToHome() {
-        // TODO: Replace with your actual home activity
         Toast.makeText(this, "Login successful!", Toast.LENGTH_SHORT).show()
-        // val intent = Intent(this, HomeActivity::class.java)
-        // startActivity(intent)
-        // finish()
+         val intent = Intent(this, MainActivity::class.java)
+         startActivity(intent)
+         finish()
     }
 
     private fun navigateToSignup() {
